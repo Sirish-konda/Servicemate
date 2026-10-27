@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:servicemate/features/home/presentation/widgets/ask_manuals_cards.dart';
 
-import '../../../../core/widgets/app_navigation_bar.dart';
 import '../widgets/recent_manual_card.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -107,14 +106,6 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
-      bottomNavigationBar: AppNavigationBar(
-        selectedIndex: 0,
-        onDestinationSelected: (index) {
-          if (index != 0) {
-            _showComingSoon(context, 'Navigation');
-          }
-        },
       ),
     );
   }

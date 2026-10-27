@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/app/app_shell.dart';
 
 import '../core/theme/app_theme.dart';
-import '../features/home/presentation/screen/home_screen.dart';
 
 class ServiceMateApp extends StatelessWidget {
   const ServiceMateApp({super.key});
@@ -12,7 +12,7 @@ class ServiceMateApp extends StatelessWidget {
       title: 'ServiceMate',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const HomeScreen(),
+      home: const AppShell(),
     );
   }
 }
