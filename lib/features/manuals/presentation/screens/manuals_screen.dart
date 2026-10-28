@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/manuals/presentation/screens/import_manual_screen.dart';
 
 import '../../domain/models/manual.dart';
 import '../widgets/manual_list_card.dart';
@@ -35,6 +36,12 @@ class _ManualsScreenState extends State<ManualsScreen> {
         .showSnackBar(SnackBar(content: Text('$feature will be added later.')));
   }
 
+  void _openImportScreen() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const ImportManualScreen()));
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -52,7 +59,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
         title: const Text('Manuals'),
         actions: [
           IconButton(
-            onPressed: () => _showComingSoon('PDF import'),
+            onPressed: () => _openImportScreen(),
             icon: const Icon(Icons.add),
             tooltip: 'Import PDF',
           ),
