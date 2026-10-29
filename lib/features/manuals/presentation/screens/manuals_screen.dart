@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:servicemate/features/manuals/presentation/screens/import_manual_screen.dart';
 
-import '../../domain/models/manual.dart';
+import '../../data/services/pdf_storage_service.dart';
+import '../../domain/models/saved_manual.dart';
 import '../widgets/manual_list_card.dart';
 import '../widgets/manuals_empty_state.dart';
+import 'import_manual_screen.dart';
 
 class ManualsScreen extends StatefulWidget {
   const ManualsScreen({super.key});
@@ -13,137 +14,165 @@ class ManualsScreen extends StatefulWidget {
 }
 
 class _ManualsScreenState extends State<ManualsScreen> {
-  // Temporary sample data. We will replace this with local storage later.
-  static const List<Manual> _sampleManuals = [
-    Manual(
-      id: 'sample-1',
-      title: 'Drive X1 Service Manual',
-      subtitle: 'Fictional equipment manual',
-      pageCount: 86,
-    ),
-    Manual(
-      id: 'sample-2',
-      title: 'Pump P2 User Guide',
-      subtitle: 'Fictional equipment manual',
-      pageCount: 54,
-    ),
-  ];
+  final PdfStorageService _storageService = PdfStorageService();
+
+  late Future<List<SavedManual>> _manualsFuture;
 
   String _searchQuery = '';
 
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('$feature will be added later.')));
+  @override
+  void initState() {
+    super.initState();
+    _manualsFuture = _storageService.getSavedManuals();
   }
 
-  void _openImportScreen() {
-    Navigator.of(
+  void _reloadManuals() {
+    setState(() {
+      _manualsFuture = _storageService.getSavedManuals();
+    });
+  }
+
+  Future<void> _openImportScreen() async {
+    await Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (context) => const ImportManualScreen()));
+    ).push<void>(MaterialPageRoute(builder: (_) => const ImportManualScreen()));
+
+    if (!mounted) return;
+
+    _reloadManuals();
+  }
+
+  void _openManualDetails(SavedManual manual) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Details for ${manual.name} will be added next.')),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final localDate = date.toLocal();
+
+    return '${localDate.day.toString().padLeft(2, '0')}/'
+        '${localDate.month.toString().padLeft(2, '0')}/'
+        '${localDate.year}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    final query = _searchQuery.trim().toLowerCase();
-
-    final filteredManuals = _sampleManuals.where((manual) {
-      return manual.title.toLowerCase().contains(query) ||
-          manual.subtitle.toLowerCase().contains(query);
-    }).toList();
+    final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manuals'),
         actions: [
           IconButton(
-            onPressed: () => _openImportScreen(),
+            onPressed: _reloadManuals,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh manuals',
+          ),
+          IconButton(
+            onPressed: _openImportScreen,
             icon: const Icon(Icons.add),
             tooltip: 'Import PDF',
           ),
-          const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        child: Column(
           children: [
-            Text(
-              'Your manual library',
-              style: textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Keep equipment manuals in one place for easy access.',
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-              decoration: InputDecoration(
-                hintText: 'Search manuals...',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: colorScheme.surfaceContainerHighest,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Your manuals',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '${filteredManuals.length} shown',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (filteredManuals.isEmpty)
-              ManualsEmptyState(
-                title: query.isEmpty ? 'No manuals yet' : 'No manuals found',
-                description: query.isEmpty
-                    ? 'Your imported manuals will appear here.'
-                    : 'Try searching with a different name.',
-              )
-            else
-              ...filteredManuals.map(
-                (manual) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: ManualListCard(
-                    manual: manual,
-                    onTap: () => _showComingSoon('Manual details'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: TextField(
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search manuals...',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: colors.surfaceContainerHighest,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
                   ),
                 ),
               ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => _showComingSoon('PDF import'),
-              icon: const Icon(Icons.add),
-              label: const Text('Import PDF'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
+            ),
+            Expanded(
+              child: FutureBuilder<List<SavedManual>>(
+                future: _manualsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Could not load your manuals. '
+                              'A saved file may be missing or unreadable.',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            OutlinedButton(
+                              onPressed: _reloadManuals,
+                              child: const Text('Try again'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  final manuals = snapshot.data ?? [];
+                  final query = _searchQuery.trim().toLowerCase();
+
+                  final filteredManuals = manuals.where((manual) {
+                    return manual.name.toLowerCase().contains(query);
+                  }).toList();
+
+                  if (manuals.isEmpty) {
+                    return const SingleChildScrollView(
+                      child: ManualsEmptyState(
+                        title: 'No manuals yet',
+                        description:
+                            'Tap the + button to import your first PDF.',
+                      ),
+                    );
+                  }
+
+                  if (filteredManuals.isEmpty) {
+                    return const SingleChildScrollView(
+                      child: ManualsEmptyState(
+                        title: 'No manuals found',
+                        description: 'Try searching with a different name.',
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                    itemCount: filteredManuals.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final manual = filteredManuals[index];
+
+                      return ManualListCard(
+                        key: ValueKey(manual.id),
+                        title: manual.name,
+                        subtitle: 'Imported ${_formatDate(manual.importedAt)}',
+                        supportingText: 'Saved locally · Not indexed yet',
+                        onTap: () => _openManualDetails(manual),
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ],

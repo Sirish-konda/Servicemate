@@ -1,25 +1,30 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/models/manual.dart';
-
 class ManualListCard extends StatelessWidget {
-  const ManualListCard({super.key, required this.manual, required this.onTap});
+  const ManualListCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.supportingText,
+    required this.onTap,
+  });
 
-  final Manual manual;
+  final String title;
+  final String subtitle;
+  final String supportingText;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     return Card(
       margin: EdgeInsets.zero,
-      color: colorScheme.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant),
+        side: BorderSide(color: colors.outlineVariant),
       ),
       child: InkWell(
         onTap: onTap,
@@ -32,12 +37,12 @@ class ManualListCard extends StatelessWidget {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
+                  color: colors.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   Icons.picture_as_pdf_outlined,
-                  color: colorScheme.onPrimaryContainer,
+                  color: colors.onPrimaryContainer,
                 ),
               ),
               const SizedBox(width: 14),
@@ -46,23 +51,25 @@ class ManualListCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      manual.title,
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      manual.subtitle,
+                      subtitle,
                       style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${manual.pageCount} pages · Sample manual',
+                      supportingText,
                       style: textTheme.labelSmall?.copyWith(
-                        color: colorScheme.primary,
+                        color: colors.primary,
                       ),
                     ),
                   ],
