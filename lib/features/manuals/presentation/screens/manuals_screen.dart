@@ -19,6 +19,8 @@ class _ManualsScreenState extends State<ManualsScreen> {
 
   late Future<List<SavedManual>> _manualsFuture;
 
+  String? _deletingManualId;
+
   String _searchQuery = '';
 
   @override
@@ -28,12 +30,14 @@ class _ManualsScreenState extends State<ManualsScreen> {
   }
 
   void _reloadManuals() {
+    if (_deletingManualId != null) return;
     setState(() {
       _manualsFuture = _storageService.getSavedManuals();
     });
   }
 
   Future<void> _openImportScreen() async {
+    if (_deletingManualId != null) return;
     await Navigator.of(
       context,
     ).push<void>(MaterialPageRoute(builder: (_) => const ImportManualScreen()));
@@ -55,6 +59,68 @@ class _ManualsScreenState extends State<ManualsScreen> {
     return '${localDate.day.toString().padLeft(2, '0')}/'
         '${localDate.month.toString().padLeft(2, '0')}/'
         '${localDate.year}';
+  }
+
+  Future<void> _deleteManual(SavedManual manual) async {
+    if (_deletingManualId != null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete manual?'),
+          content: Text(
+            'Delete "${manual.name}" and its extracted text '
+            'from ServiceMate?\n\n'
+            'Your original PDF outside the app will not be deleted.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || confirmed != true) return;
+
+    setState(() {
+      _deletingManualId = manual.id;
+    });
+
+    var message = 'Manual deleted from ServiceMate.';
+
+    try {
+      await _storageService.deleteManual(manual.id);
+    } catch (error, stackTrace) {
+      debugPrint('Manual deletion failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      message =
+          'Could not fully delete the manual. '
+          'The library will be refreshed.';
+    } finally {
+      if (mounted) {
+        setState(() {
+          _deletingManualId = null;
+        });
+
+        _reloadManuals();
+
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
   }
 
   @override
@@ -169,7 +235,15 @@ class _ManualsScreenState extends State<ManualsScreen> {
                         title: manual.name,
                         subtitle: 'Imported ${_formatDate(manual.importedAt)}',
                         supportingText: 'Saved locally · Not indexed yet',
-                        onTap: () => _openManual(manual),
+                        isDeleting: _deletingManualId == manual.id,
+                        onDelete: _deletingManualId == null
+                            ? () => _deleteManual(manual)
+                            : null,
+                        onTap: () {
+                          if (_deletingManualId != null) return;
+
+                          _openManual(manual);
+                        },
                       );
                     },
                   );

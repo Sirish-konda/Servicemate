@@ -165,4 +165,25 @@ class PdfStorageService {
 
     return pdfFile.path;
   }
+
+  Future<void> deleteManual(String manualId) async {
+    final validId = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+      r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
+
+    if (!validId.hasMatch(manualId)) {
+      throw const FormatException('Invalid manual ID.');
+    }
+
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+
+    final manualDirectory = Directory(
+      p.join(documentsDirectory.path, 'manuals', manualId),
+    );
+
+    if (await manualDirectory.exists()) {
+      await manualDirectory.delete(recursive: true);
+    }
+  }
 }

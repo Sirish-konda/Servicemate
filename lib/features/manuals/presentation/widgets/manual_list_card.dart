@@ -7,12 +7,16 @@ class ManualListCard extends StatelessWidget {
     required this.subtitle,
     required this.supportingText,
     required this.onTap,
+    this.isDeleting = false,
+    this.onDelete,
   });
 
   final String title;
   final String subtitle;
   final String supportingText;
   final VoidCallback onTap;
+  final bool isDeleting;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +31,7 @@ class ManualListCard extends StatelessWidget {
         side: BorderSide(color: colors.outlineVariant),
       ),
       child: InkWell(
-        onTap: onTap,
+        onTap: isDeleting ? null : onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -76,7 +80,35 @@ class ManualListCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right),
+              if (isDeleting)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (onDelete != null)
+                PopupMenuButton<String>(
+                  tooltip: 'Manual options',
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      onDelete?.call();
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline),
+                          SizedBox(width: 12),
+                          Text('Delete manual'),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              else
+                const Icon(Icons.chevron_right),
             ],
           ),
         ),
