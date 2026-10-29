@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/manuals/data/services/text_chunking_service.dart';
+import 'package:servicemate/features/manuals/domain/models/manual_chunck.dart';
 
 import '../../data/services/pdf_storage_service.dart';
 import '../../data/services/pdf_text_extraction_service.dart';
@@ -21,6 +23,9 @@ class _ManualTextPreviewScreenState extends State<ManualTextPreviewScreen> {
       PdfTextExtractionService();
 
   late Future<List<ManualPageText>> _previewFuture;
+
+  final TextChunkingService _chunkingService = TextChunkingService();
+  bool _showChunks = false;
 
   @override
   void initState() {
@@ -100,19 +105,55 @@ class _ManualTextPreviewScreenState extends State<ManualTextPreviewScreen> {
               );
             }
 
+            final chunks = _showChunks
+                ? _chunkingService.createChunks(pages)
+                : <ManualChunk>[];
+
+            final contentCount = _showChunks ? chunks.length : pages.length;
+
             return ListView.separated(
               padding: const EdgeInsets.all(20),
-              itemCount: pages.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemCount: contentCount + 1,
+              separatorBuilder: (_, _) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return Text(
-                    '${widget.manual.name}\n\n'
-                    'Showing ${pages.length} page(s), up to the first 10. '
-                    'Compare this text with the original PDF. '
-                    'Tables and columns may appear in the wrong order.',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.manual.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Previewing ${pages.length} PDF page(s), '
+                        'up to the first 10.',
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show search passages'),
+                        subtitle: const Text(
+                          'Up to 200 words per passage, with 30-word overlap.',
+                        ),
+                        value: _showChunks,
+                        onChanged: (value) {
+                          setState(() {
+                            _showChunks = value;
+                          });
+                        },
+                      ),
+                      if (_showChunks)
+                        Text(
+                          chunks.isEmpty
+                              ? 'No passages were created from these pages.'
+                              : '${chunks.length} passages created.',
+                        ),
+                    ],
                   );
+                }
+
+                if (_showChunks) {
+                  return _ChunkPreviewCard(chunk: chunks[index - 1]);
                 }
 
                 return _PageTextCard(page: pages[index - 1]);
@@ -155,6 +196,36 @@ class _PageTextCard extends StatelessWidget {
                         'It may contain an image, a scan or no text.',
               style: textTheme.bodyMedium,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChunkPreviewCard extends StatelessWidget {
+  const _ChunkPreviewCard({required this.chunk});
+
+  final ManualChunk chunk;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'PDF page ${chunk.pdfPageNumber}',
+              style: Theme.of(context).textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(chunk.id, style: Theme.of(context).textTheme.labelSmall),
+            const SizedBox(height: 12),
+            SelectableText(chunk.text),
           ],
         ),
       ),

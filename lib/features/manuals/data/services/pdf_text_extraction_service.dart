@@ -47,4 +47,51 @@ class PdfTextExtractionService {
       await document.dispose();
     }
   }
+
+  Stream<ManualPageText> extractAll({
+    required String manualId,
+    required String filePath,
+    required bool Function() isCancelled,
+  }) async* {
+    if (isCancelled()) {
+      throw const ExtractionCancelled();
+    }
+
+    await pdfrxFlutterInitialize();
+
+    final document = await PdfDocument.openFile(
+      filePath,
+      useProgressiveLoading: false,
+    );
+
+    try {
+      for (var index = 0; index < document.pages.length; index++) {
+        if (isCancelled()) {
+          throw const ExtractionCancelled();
+        }
+
+        final extractedText = await document.pages[index].loadText();
+
+        if (isCancelled()) {
+          throw const ExtractionCancelled();
+        }
+
+        if (extractedText == null) {
+          throw StateError('Could not extract text from PDF page ${index + 1}');
+        }
+
+        yield ManualPageText(
+          manualId: manualId,
+          pdfPageNumber: index + 1,
+          text: extractedText.fullText,
+        );
+      }
+    } finally {
+      await document.dispose();
+    }
+  }
+}
+
+class ExtractionCancelled implements Exception {
+  const ExtractionCancelled();
 }

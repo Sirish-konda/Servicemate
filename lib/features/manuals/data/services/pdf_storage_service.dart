@@ -163,8 +163,6 @@ class PdfStorageService {
       throw const FileSystemException('The saved PDF could not be found.');
     }
 
-    print('PDF path: ${pdfFile.path}');
-    print('PDF size: ${await pdfFile.length()} bytes');
     return pdfFile.path;
   }
 }
