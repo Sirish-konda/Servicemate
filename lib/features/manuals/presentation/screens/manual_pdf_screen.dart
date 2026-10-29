@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/manuals/presentation/screens/manual_text_preview_screen.dart';
 
 import '../../../../core/widgets/local_pdf_viewer.dart';
 import '../../data/services/pdf_storage_service.dart';
@@ -23,6 +24,14 @@ class _ManualPdfScreenState extends State<ManualPdfScreen> {
 
   late Future<String> _pdfPathFuture;
 
+  void _openTextPreview() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ManualTextPreviewScreen(manual: widget.manual),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +53,13 @@ class _ManualPdfScreenState extends State<ManualPdfScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          IconButton(
+            onPressed: _openTextPreview,
+            icon: const Icon(Icons.text_snippet_outlined),
+            tooltip: 'Preview extracted text',
+          ),
+        ],
       ),
       body: SafeArea(
         child: FutureBuilder<String>(
