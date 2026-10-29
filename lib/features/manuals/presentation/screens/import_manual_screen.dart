@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/manuals/data/services/manual_preparation_service.dart';
 import 'package:servicemate/features/manuals/data/services/pdf_storage_service.dart';
+import 'package:servicemate/features/manuals/data/services/pdf_text_extraction_service.dart';
 import 'package:servicemate/features/manuals/domain/models/saved_manual.dart';
 
 import '../../data/services/pdf_picker_service.dart';
@@ -23,6 +25,22 @@ class _ImportManualScreenState extends State<ImportManualScreen> {
   bool _isSaving = false;
   bool _isPicking = false;
 
+  late final ManualPreparationService _preparationService;
+
+  bool _isPrepared = false;
+  bool _cancelRequested = false;
+
+  String _preparationStatus = '';
+
+  @override
+  void initState() {
+    super.initState();
+
+    _preparationService = ManualPreparationService(
+      storageService: _storageService,
+    );
+  }
+
   Future<void> _pickPdf() async {
     if (_isPicking || _isSaving) return;
 
@@ -40,6 +58,8 @@ class _ImportManualScreenState extends State<ImportManualScreen> {
         setState(() {
           _selectedPdf = pdf;
           _savedManual = null;
+          _isPrepared = false;
+          _preparationStatus = '';
         });
       }
     } on PdfPickerException catch (error) {
@@ -70,38 +90,86 @@ class _ImportManualScreenState extends State<ImportManualScreen> {
     setState(() {
       _selectedPdf = null;
       _savedManual = null;
+      _isPrepared = false;
+      _preparationStatus = '';
     });
   }
 
   Future<void> _saveManual() async {
-    final pdf = _selectedPdf;
+    final selectedPdf = _selectedPdf;
 
-    if (pdf == null || _isSaving || _savedManual != null) {
+    if (selectedPdf == null || _isSaving || _isPicking || _isPrepared) {
       return;
     }
 
     setState(() {
       _isSaving = true;
+      _cancelRequested = false;
+      _preparationStatus = _savedManual == null
+          ? 'Saving PDF...'
+          : 'Retrying preparation...';
     });
 
     try {
-      final manual = await _storageService.savePdf(pdf);
+      var manual = _savedManual;
+
+      if (manual == null) {
+        manual = await _storageService.savePdf(selectedPdf);
+
+        if (!mounted) return;
+
+        setState(() {
+          _savedManual = manual;
+        });
+      }
+
+      await _preparationService.prepare(
+        manual: manual,
+        isCancelled: () => _cancelRequested || !mounted,
+        onProgress: (stage, pagesProcessed) {
+          if (!mounted) return;
+
+          setState(() {
+            _preparationStatus = pagesProcessed == 0
+                ? '$stage...'
+                : '$stage: $pagesProcessed pages processed';
+          });
+        },
+      );
 
       if (!mounted) return;
 
       setState(() {
-        _savedManual = manual;
+        _isPrepared = true;
+        _preparationStatus = 'Manual ready for text search.';
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Manual saved on this device.')),
-      );
-    } catch (_) {
+    } on ExtractionCancelled {
       if (!mounted) return;
 
-      _showError(
-        'Could not save the manual. Check available storage and try again.',
-      );
+      setState(() {
+        _preparationStatus =
+            'Preparation cancelled. Tap Retry preparation to try again.';
+      });
+    } on ManualHasNoTextException {
+      if (!mounted) return;
+
+      setState(() {
+        _preparationStatus =
+            'No searchable text was found. '
+            'This PDF may need OCR, which is not supported yet.';
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Manual preparation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        _preparationStatus = _savedManual == null
+            ? 'Could not save the PDF. Please try again.'
+            : 'The PDF was saved, but preparation failed. '
+                  'Tap Retry preparation to try again.';
+      });
     } finally {
       if (mounted) {
         setState(() {
@@ -176,41 +244,92 @@ class _ImportManualScreenState extends State<ImportManualScreen> {
                 'copy, extract its text and prepare it for searching.',
               ),
               const SizedBox(height: 28),
+              if (_isSaving) ...[
+                const LinearProgressIndicator(),
+                const SizedBox(height: 16),
+              ],
+
+              if (_preparationStatus.isNotEmpty) ...[
+                Text(_preparationStatus, textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+              ],
+
               FilledButton(
                 onPressed:
                     selectedPdf == null ||
                         _isPicking ||
                         _isSaving ||
-                        _savedManual != null
+                        _isPrepared
                     ? null
                     : _saveManual,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(56),
                 ),
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        _savedManual != null
-                            ? 'Saved on this device. Text extraction has not been run yet.'
-                            : 'Save a local copy before preparing the manual for search.',
-                        textAlign: TextAlign.center,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                selectedPdf == null ? 'Select a PDF to preview its details.' : 'PDF selected. Saving and processing are not connected yet.',
-                textAlign: TextAlign.center,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
+                child: Text(
+                  _isSaving
+                      ? 'Preparing manual...'
+                      : _isPrepared
+                      ? 'Ready for text search'
+                      : _savedManual != null
+                      ? 'Retry preparation'
+                      : 'Import and prepare',
                 ),
               ),
+
+              if (_isSaving) ...[
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: _cancelRequested
+                      ? null
+                      : () {
+                          setState(() {
+                            _cancelRequested = true;
+                            _preparationStatus =
+                                'Cancelling after the current operation...';
+                          });
+                        },
+                  child: Text(
+                    _cancelRequested ? 'Cancelling...' : 'Cancel preparation',
+                  ),
+                ),
+              ],
+
+              if (_isPrepared) ...[
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Back to manuals'),
+                ),
+
+                // ],
+                // FilledButton(
+                //   onPressed:
+                //       selectedPdf == null ||
+                //           _isPicking ||
+                //           _isSaving ||
+                //           _savedManual != null
+                //       ? null
+                //       : _saveManual,
+                //   style: FilledButton.styleFrom(
+                //     minimumSize: const Size.fromHeight(56),
+                //   ),
+                //   child: _isSaving
+                //       ? const SizedBox(
+                //           width: 22,
+                //           height: 22,
+                //           child: CircularProgressIndicator(strokeWidth: 2),
+                //         )
+                //       : Text(
+                //           _savedManual != null
+                //               ? 'Saved on this device. Text extraction has not been run yet.'
+                //               : 'Save a local copy before preparing the manual for search.',
+                //           textAlign: TextAlign.center,
+                //           style: textTheme.bodySmall?.copyWith(
+                //             color: colors.onSurfaceVariant,
+                //           ),
+                //         ),
+                // ),
+              ],
             ],
           ),
         ),

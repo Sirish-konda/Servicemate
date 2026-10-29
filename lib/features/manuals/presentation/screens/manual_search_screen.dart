@@ -92,7 +92,7 @@ class _ManualSearchScreenState extends State<ManualSearchScreen> {
                     textInputAction: TextInputAction.search,
                     onSubmitted: (_) => _search(),
                     decoration: InputDecoration(
-                      hintText: 'Word, phrase or error code',
+                      hintText: 'Question, keywords or error code',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -149,7 +149,7 @@ class _ManualSearchScreenState extends State<ManualSearchScreen> {
                               padding: const EdgeInsets.all(24),
                               child: Text(
                                 'No matching passages for "$_submittedQuery". '
-                                'Try a shorter term.',
+                                'Try a specific term or error code from the manual.',
                                 textAlign: TextAlign.center,
                               ),
                             ),
@@ -165,8 +165,7 @@ class _ManualSearchScreenState extends State<ManualSearchScreen> {
                             if (index == 0) {
                               return Text(
                                 'Results for "$_submittedQuery"\n'
-                                'Showing up to 30 matching passages '
-                                'in document order.',
+                                'Showing up to 30 passages ranked by keyword matches.',
                               );
                             }
 

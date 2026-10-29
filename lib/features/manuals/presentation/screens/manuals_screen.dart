@@ -234,7 +234,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
                         key: ValueKey(manual.id),
                         title: manual.name,
                         subtitle: 'Imported ${_formatDate(manual.importedAt)}',
-                        supportingText: 'Saved locally · Not indexed yet',
+                        supportingText: 'Saved on this device',
                         isDeleting: _deletingManualId == manual.id,
                         onDelete: _deletingManualId == null
                             ? () => _deleteManual(manual)
