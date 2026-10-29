@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/manuals/data/services/manual_chunking_service.dart';
+import 'package:servicemate/features/manuals/data/services/text_chunking_service.dart';
 
 import '../../data/services/manual_processing_service.dart';
 import '../../data/services/pdf_storage_service.dart';
@@ -23,6 +25,7 @@ class _ManualProcessingScreenState extends State<ManualProcessingScreen> {
 
   String _message = 'Extract and save text from every PDF page.';
 
+  late final ManualChunkingService _manualChunkingService;
   @override
   void initState() {
     super.initState();
@@ -30,6 +33,11 @@ class _ManualProcessingScreenState extends State<ManualProcessingScreen> {
     _processingService = ManualProcessingService(
       storageService: PdfStorageService(),
       extractionService: PdfTextExtractionService(),
+    );
+
+    _manualChunkingService = ManualChunkingService(
+      storageService: PdfStorageService(),
+      chunkingService: TextChunkingService(),
     );
   }
 
@@ -105,6 +113,63 @@ class _ManualProcessingScreenState extends State<ManualProcessingScreen> {
     });
   }
 
+  Future<void> _createPassages() async {
+    if (_isProcessing) return;
+
+    setState(() {
+      _isProcessing = true;
+      _cancelRequested = false;
+      _pagesProcessed = 0;
+      _message = 'Creating search passages...';
+    });
+
+    try {
+      final count = await _manualChunkingService.buildChunks(
+        manualId: widget.manual.id,
+        isCancelled: () => _cancelRequested,
+        onProgress: (count) {
+          if (!mounted) return;
+
+          setState(() {
+            _pagesProcessed = count;
+          });
+        },
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _message = count == 0
+            ? 'No passages were created. Check whether the PDF '
+                  'contains extractable text.'
+            : 'Saved $count search passages.';
+      });
+    } on ExtractionCancelled {
+      if (!mounted) return;
+
+      setState(() {
+        _message = 'Passage creation cancelled.';
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Passage creation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        _message =
+            'Could not create passages. '
+            'Extract the manual text first, then try again.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -146,6 +211,13 @@ class _ManualProcessingScreenState extends State<ManualProcessingScreen> {
                 'This reads existing PDF text. Scanned pages need OCR. '
                 'Extraction does not mean the manual is indexed for search.',
               ),
+              if (!_isProcessing) ...[
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: _createPassages,
+                  child: const Text('Create search passages'),
+                ),
+              ],
             ],
           ),
         ),

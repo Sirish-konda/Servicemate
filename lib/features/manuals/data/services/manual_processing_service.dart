@@ -63,6 +63,11 @@ class ManualProcessingService {
         throw const ExtractionCancelled();
       }
 
+      final oldChunks = File(p.join(directory, 'chunks.jsonl'));
+
+      if (await oldChunks.exists()) {
+        await oldChunks.delete();
+      }
       await temporaryFile.rename(outputPath);
 
       return pagesProcessed;

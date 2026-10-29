@@ -29,17 +29,16 @@ class ManualSearchService {
     }
 
     final pdfPath = await _storageService.getPdfPath(manualId);
-    final pagesFile = File(p.join(p.dirname(pdfPath), 'pages.jsonl'));
+    final chunksFile = File(p.join(p.dirname(pdfPath), 'chunks.jsonl'));
 
-    if (!await pagesFile.exists()) {
+    if (!await chunksFile.exists()) {
       throw const ManualNotProcessedException();
     }
-
     final pattern = RegExp(RegExp.escape(trimmedQuery), caseSensitive: false);
 
     final results = <ManualSearchResult>[];
 
-    final lines = pagesFile
+    final lines = chunksFile
         .openRead()
         .transform(utf8.decoder)
         .transform(const LineSplitter());

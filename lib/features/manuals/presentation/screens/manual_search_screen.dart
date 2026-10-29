@@ -112,8 +112,7 @@ class _ManualSearchScreenState extends State<ManualSearchScreen> {
                       child: Padding(
                         padding: EdgeInsets.all(24),
                         child: Text(
-                          'Search the manual’s extracted text. '
-                          'Process the manual first.',
+                          'Extract the manual text and create search passages first.',
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -149,7 +148,7 @@ class _ManualSearchScreenState extends State<ManualSearchScreen> {
                             child: Padding(
                               padding: const EdgeInsets.all(24),
                               child: Text(
-                                'No matching pages for "$_submittedQuery". '
+                                'No matching passages for "$_submittedQuery". '
                                 'Try a shorter term.',
                                 textAlign: TextAlign.center,
                               ),
@@ -166,7 +165,7 @@ class _ManualSearchScreenState extends State<ManualSearchScreen> {
                             if (index == 0) {
                               return Text(
                                 'Results for "$_submittedQuery"\n'
-                                'Showing up to 30 matching pages '
+                                'Showing up to 30 matching passages '
                                 'in document order.',
                               );
                             }
