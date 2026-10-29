@@ -141,4 +141,28 @@ class PdfStorageService {
       rethrow;
     }
   }
+
+  Future<String> getPdfPath(String manualId) async {
+    // Prevent an ID from being interpreted as a relative filesystem path.
+    final validId = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+      r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
+
+    if (!validId.hasMatch(manualId)) {
+      throw const FormatException('Invalid manual ID.');
+    }
+
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+
+    final pdfFile = File(
+      p.join(documentsDirectory.path, 'manuals', manualId, 'manual.pdf'),
+    );
+
+    if (!await pdfFile.exists()) {
+      throw const FileSystemException('The saved PDF could not be found.');
+    }
+
+    return pdfFile.path;
+  }
 }

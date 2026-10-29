@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/manuals/presentation/screens/manual_pdf_screen.dart';
 
 import '../../data/services/pdf_storage_service.dart';
 import '../../domain/models/saved_manual.dart';
@@ -42,9 +43,9 @@ class _ManualsScreenState extends State<ManualsScreen> {
     _reloadManuals();
   }
 
-  void _openManualDetails(SavedManual manual) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Details for ${manual.name} will be added next.')),
+  void _openManual(SavedManual manual) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => ManualPdfScreen(manual: manual)),
     );
   }
 
@@ -168,7 +169,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
                         title: manual.name,
                         subtitle: 'Imported ${_formatDate(manual.importedAt)}',
                         supportingText: 'Saved locally · Not indexed yet',
-                        onTap: () => _openManualDetails(manual),
+                        onTap: () => _openManual(manual),
                       );
                     },
                   );
