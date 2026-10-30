@@ -56,4 +56,17 @@ void main() {
 
     expect(results, isEmpty);
   });
+
+  test('retrieves frequency information for a WiFi question', () {
+    final results = service.rank(
+      chunks: [
+        chunk('c1', 5, 'SAFETY INSTRUCTIONS 5. Clean the appliance carefully.'),
+        chunk('c2', 21, 'Keep the appliance upright when moving it.'),
+        chunk('c3', 37, 'The appliance supports 2.4 GHz Wi-Fi networks only.'),
+      ],
+      query: 'Does the appliance support 5 GHz WiFi?',
+    );
+
+    expect(results.first.pdfPageNumber, 37);
+  });
 }

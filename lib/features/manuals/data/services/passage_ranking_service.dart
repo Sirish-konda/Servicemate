@@ -1,49 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:servicemate/features/manuals/domain/models/manual_chunck.dart';
 
 import '../../domain/models/manual_search_result.dart';
+import 'search_tokenizer.dart';
 
 class PassageRankingService {
-  static const _stopWords = {
-    'a',
-    'an',
-    'the',
-    'is',
-    'are',
-    'was',
-    'were',
-    'what',
-    'does',
-    'do',
-    'how',
-    'can',
-    'i',
-    'my',
-    'to',
-    'of',
-    'for',
-    'please',
-    'der',
-    'die',
-    'das',
-    'ein',
-    'eine',
-    'ist',
-    'sind',
-    'wie',
-    'ich',
-    'mein',
-    'meine',
-    'bitte',
-  };
+  final SearchTokenizer _tokenizer = SearchTokenizer();
 
-  Set<String> _terms(String text) {
-    final pattern = RegExp(r'[a-zäöüß0-9]+(?:[-_][a-zäöüß0-9]+)*');
-
-    return pattern
-        .allMatches(text.toLowerCase())
-        .map((match) => match.group(0)!)
-        .toSet();
-  }
+  static const double _k1 = 1.2;
+  static const double _b = 0.75;
 
   List<ManualSearchResult> rank({
     required List<ManualChunk> chunks,
@@ -54,34 +20,74 @@ class PassageRankingService {
       throw ArgumentError('Enter a query and a positive result limit.');
     }
 
-    final queryTerms = _terms(query).difference(_stopWords);
+    if (chunks.isEmpty) return [];
 
-    if (queryTerms.isEmpty) {
-      return [];
+    final queryTerms = _tokenizer.tokenize(query).toSet();
+
+    if (queryTerms.isEmpty) return [];
+
+    final documents = chunks
+        .map((chunk) {
+          final tokens = _tokenizer.tokenize(chunk.text);
+          final frequencies = <String, int>{};
+
+          for (final token in tokens) {
+            frequencies[token] = (frequencies[token] ?? 0) + 1;
+          }
+
+          return _SearchDocument(
+            chunk: chunk,
+            length: tokens.length,
+            frequencies: frequencies,
+          );
+        })
+        .where((document) => document.length > 0)
+        .toList();
+
+    if (documents.isEmpty) return [];
+
+    final averageLength =
+        documents.fold<int>(0, (total, document) => total + document.length) /
+        documents.length;
+
+    final documentFrequencies = <String, int>{};
+
+    for (final document in documents) {
+      for (final term in document.frequencies.keys) {
+        documentFrequencies[term] = (documentFrequencies[term] ?? 0) + 1;
+      }
     }
 
     final scored = <_ScoredChunk>[];
-    final normalisedQuery = _normalise(query);
 
-    for (final chunk in chunks) {
-      final passageTerms = _terms(chunk.text);
+    for (final document in documents) {
+      var score = 0.0;
 
-      final matchedTerms = queryTerms
-          .where(passageTerms.contains)
-          .toList(growable: false);
+      for (final term in queryTerms) {
+        final frequency = document.frequencies[term] ?? 0;
 
-      if (matchedTerms.isEmpty) continue;
+        if (frequency == 0) continue;
 
-      var score = matchedTerms.length;
+        final documentFrequency = documentFrequencies[term]!;
 
-      // Prefer a passage containing the complete query phrase.
-      if (_normalise(chunk.text).contains(normalisedQuery)) {
-        score += 3;
+        final inverseDocumentFrequency = math.log(
+          1 +
+              (documents.length - documentFrequency + 0.5) /
+                  (documentFrequency + 0.5),
+        );
+
+        final lengthNormalisation =
+            1 - _b + _b * document.length / averageLength;
+
+        score +=
+            inverseDocumentFrequency *
+            (frequency * (_k1 + 1)) /
+            (frequency + _k1 * lengthNormalisation);
       }
 
-      scored.add(
-        _ScoredChunk(chunk: chunk, score: score, matchedTerms: matchedTerms),
-      );
+      if (score > 0) {
+        scored.add(_ScoredChunk(chunk: document.chunk, score: score));
+      }
     }
 
     scored.sort((first, second) {
@@ -103,46 +109,28 @@ class PassageRankingService {
         .map((result) {
           return ManualSearchResult(
             pdfPageNumber: result.chunk.pdfPageNumber,
-            snippet: _snippet(result.chunk.text, result.matchedTerms.first),
+            snippet: result.chunk.text,
           );
         })
         .toList(growable: false);
   }
-
-  String _normalise(String text) {
-    return text.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
-  }
-
-  String _snippet(String text, String term) {
-    final match = RegExp(
-      RegExp.escape(term),
-      caseSensitive: false,
-    ).firstMatch(text);
-
-    final position = match?.start ?? 0;
-    final start = position > 100 ? position - 100 : 0;
-    final proposedEnd = (match?.end ?? position) + 180;
-    final end = proposedEnd < text.length ? proposedEnd : text.length;
-
-    final excerpt = text
-        .substring(start, end)
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-
-    return '${start > 0 ? '…' : ''}'
-        '$excerpt'
-        '${end < text.length ? '…' : ''}';
-  }
 }
 
-class _ScoredChunk {
-  const _ScoredChunk({
+class _SearchDocument {
+  const _SearchDocument({
     required this.chunk,
-    required this.score,
-    required this.matchedTerms,
+    required this.length,
+    required this.frequencies,
   });
 
   final ManualChunk chunk;
-  final int score;
-  final List<String> matchedTerms;
+  final int length;
+  final Map<String, int> frequencies;
+}
+
+class _ScoredChunk {
+  const _ScoredChunk({required this.chunk, required this.score});
+
+  final ManualChunk chunk;
+  final double score;
 }

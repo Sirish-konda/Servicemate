@@ -165,7 +165,7 @@ class _ManualSearchScreenState extends State<ManualSearchScreen> {
                             if (index == 0) {
                               return Text(
                                 'Results for "$_submittedQuery"\n'
-                                'Showing up to 30 passages ranked by keyword matches.',
+                                'Showing up to 30 passages ranked using BM25.',
                               );
                             }
 
