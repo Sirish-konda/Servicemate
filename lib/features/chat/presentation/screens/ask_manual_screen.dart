@@ -93,7 +93,7 @@ class _AskManualScreenState extends State<AskManualScreen> {
 
         setState(() {
           _answer = buffer.toString();
-          _status = 'Preparing answer...';
+          _status = 'Generating answer...';
         });
       }
 

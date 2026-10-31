@@ -19,7 +19,7 @@ class LocalLlmService {
 
     await modelDirectory.create(recursive: true);
 
-    final destination = p.join(modelDirectory.path, 'qwen3-0.6b.litertlm',);
+    final destination = p.join(modelDirectory.path, 'qwen3-1.7b.litertlm');
 
     // Keep our own copy instead of relying on the picker's temporary path.
     if (p.normalize(sourcePath) != p.normalize(destination)) {
@@ -37,10 +37,15 @@ class LocalLlmService {
       throw StateError('Import the model first.');
     }
 
+    final timer = Stopwatch()..start();
+
     final model = await FlutterEdgeAi.getActiveModel(
       preferredBackend: PreferredBackend.cpu,
       maxTokens: 2048,
     );
+
+    final loadedAt = timer.elapsedMilliseconds;
+    print('[LLM] Model ready: ${loadedAt} ms');
 
     try {
       final chat = await model.createChat(
@@ -52,13 +57,45 @@ class LocalLlmService {
 
       await chat.addQueryChunk(Message.text(text: prompt, isUser: true));
 
+      final generationStartedAt = timer.elapsedMilliseconds;
+      var receivedText = false;
+
       await for (final response in chat.generateChatResponseAsync()) {
-        if (response is TextResponse) {
+        if (response is TextResponse && response.token.isNotEmpty) {
+          if (!receivedText) {
+            receivedText = true;
+
+            final firstTextAt = timer.elapsedMilliseconds;
+
+            print('[LLM] First text from start: $firstTextAt ms');
+            print(
+              '[LLM] First text after generation started: '
+              '${firstTextAt - generationStartedAt} ms',
+            );
+          }
+
           yield response.token;
         }
       }
+
+      print(
+        '[LLM] Generation finished: '
+        '${timer.elapsedMilliseconds - generationStartedAt} ms',
+      );
     } finally {
-      await model.close();
+      final closeStartedAt = timer.elapsedMilliseconds;
+
+      try {
+        await model.close();
+      } finally {
+        timer.stop();
+
+        print(
+          '[LLM] Model close: '
+          '${timer.elapsedMilliseconds - closeStartedAt} ms',
+        );
+        print('[LLM] Total: ${timer.elapsedMilliseconds} ms');
+      }
     }
   }
 }
