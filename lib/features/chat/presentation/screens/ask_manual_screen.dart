@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/chat/data/services/manual_answer_history_service.dart';
+import 'package:servicemate/features/chat/presentation/screens/manual_answer_history_screen.dart';
 
 import '../../../../core/llm/local_llm_service.dart';
 import '../../../manuals/data/services/manual_search_service.dart';
@@ -46,6 +48,37 @@ class _AskManualScreenState extends State<AskManualScreen> {
     super.dispose();
   }
 
+  Future<void> _saveCompletedAnswer({
+    required String question,
+    required String answer,
+    required List<ManualSearchResult> sources,
+  }) async {
+    try {
+      await _historyService.saveAnswer(
+        manualId: widget.manual.id,
+        question: question,
+        answer: answer,
+        sources: sources,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _historyStatus = 'Saved to answer history.';
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Saving answer history failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        _historyStatus =
+            'The answer is available, but could not be saved to history.';
+      });
+    }
+  }
+
   Future<void> _ask() async {
     final question = _questionController.text.trim();
 
@@ -68,6 +101,7 @@ class _AskManualScreenState extends State<AskManualScreen> {
       _answer = '';
       _sources = [];
       _status = 'Searching the manual...';
+      _historyStatus = '';
     });
 
     final buffer = StringBuffer();
@@ -102,6 +136,14 @@ class _AskManualScreenState extends State<AskManualScreen> {
       setState(() {
         _status = _completionMessage();
       });
+
+      if (_answer.trim().isNotEmpty && _sources.isNotEmpty) {
+        await _saveCompletedAnswer(
+          question: question,
+          answer: _answer,
+          sources: List<ManualSearchResult>.of(_sources),
+        );
+      }
     } catch (error, stackTrace) {
       debugPrint('Manual answer failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -162,6 +204,19 @@ class _AskManualScreenState extends State<AskManualScreen> {
     );
   }
 
+  void _openHistory() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ManualAnswerHistoryScreen(manual: widget.manual),
+      ),
+    );
+  }
+
+  final ManualAnswerHistoryService _historyService =
+      ManualAnswerHistoryService();
+
+  String _historyStatus = '';
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -172,6 +227,13 @@ class _AskManualScreenState extends State<AskManualScreen> {
         appBar: AppBar(
           title: const Text('Ask this manual'),
           automaticallyImplyLeading: !_isBusy,
+          actions: [
+            IconButton(
+              tooltip: 'Answer history',
+              onPressed: _isBusy ? null : _openHistory,
+              icon: const Icon(Icons.history),
+            ),
+          ],
         ),
         body: SafeArea(
           child: ListView(
@@ -202,6 +264,10 @@ class _AskManualScreenState extends State<AskManualScreen> {
                 const SizedBox(height: 12),
               ],
               if (_status.isNotEmpty) Text(_status),
+              if (_historyStatus.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(_historyStatus, style: textTheme.bodySmall),
+              ],
               if (_answer.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 Text(
