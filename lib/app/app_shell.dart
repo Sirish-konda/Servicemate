@@ -18,11 +18,16 @@ class _AppShellState extends State<AppShell> {
 
   int _selectedIndex = 0;
   Key _chatScreenKey = UniqueKey();
+  Key _homeScreenKey = UniqueKey();
 
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
 
     setState(() {
+      if (index == 0) {
+        _homeScreenKey = UniqueKey();
+      }
+
       if (index == _chatTabIndex) {
         _chatScreenKey = UniqueKey();
       }
@@ -37,7 +42,10 @@ class _AppShellState extends State<AppShell> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          const HomeScreen(),
+          HomeScreen(
+            key: _homeScreenKey,
+            onTabSelected: _onDestinationSelected,
+          ),
           const ManualsScreen(),
           ChatScreen(key: _chatScreenKey),
           const SettingsScreen(),

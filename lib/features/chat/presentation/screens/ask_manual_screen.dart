@@ -11,9 +11,14 @@ import '../../../manuals/presentation/screens/manual_pdf_screen.dart';
 import '../../data/services/manual_answer_service.dart';
 
 class AskManualScreen extends StatefulWidget {
-  const AskManualScreen({super.key, required this.manual});
+  const AskManualScreen({
+    super.key,
+    required this.manual,
+    this.initialQuestion = '',
+  });
 
   final SavedManual manual;
+  final String initialQuestion;
 
   @override
   State<AskManualScreen> createState() => _AskManualScreenState();
@@ -35,6 +40,7 @@ class _AskManualScreenState extends State<AskManualScreen> {
   @override
   void initState() {
     super.initState();
+    _questionController.text = widget.initialQuestion;
 
     _answerService = ManualAnswerService(
       searchService: ManualSearchService(storageService: PdfStorageService()),
