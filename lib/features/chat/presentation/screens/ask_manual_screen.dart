@@ -150,6 +150,28 @@ class _AskManualScreenState extends State<AskManualScreen> {
           sources: List<ManualSearchResult>.of(_sources),
         );
       }
+    } on ManualNotProcessedException {
+      if (!mounted) return;
+
+      setState(() {
+        _failed = true;
+        _status =
+            'This manual is not ready for questions. '
+            'Open its PDF and use the processing screen to '
+            'extract text and create searchable passages.';
+      });
+    } on FormatException catch (error, stackTrace) {
+      debugPrint('Reading manual passages failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        _failed = true;
+        _status =
+            'The saved passages could not be read. '
+            'Open this manual’s processing screen and prepare it again.';
+      });
     } catch (error, stackTrace) {
       debugPrint('Manual answer failed: $error');
       debugPrintStack(stackTrace: stackTrace);

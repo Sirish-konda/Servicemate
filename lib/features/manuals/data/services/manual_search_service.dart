@@ -61,7 +61,8 @@ class ManualSearchService {
           id is! String ||
           pageNumber is! int ||
           pageNumber < 1 ||
-          text is! String) {
+          text is! String ||
+          text.trim().isEmpty) {
         throw const FormatException('Invalid passage record.');
       }
 
@@ -75,6 +76,9 @@ class ManualSearchService {
       );
     }
 
+    if (chunks.isEmpty) {
+      throw const ManualNotProcessedException();
+    }
     return _rankingService.rank(
       chunks: chunks,
       query: query,
