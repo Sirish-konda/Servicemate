@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/chat/presentation/screens/ask_manual_screen.dart';
 import 'package:servicemate/features/manuals/presentation/screens/manual_search_screen.dart';
 import 'package:servicemate/features/manuals/presentation/screens/manual_text_preview_screen.dart';
 
@@ -62,6 +63,12 @@ class _ManualPdfScreenState extends State<ManualPdfScreen> {
     });
   }
 
+  void _openAskScreen() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => AskManualScreen(manual: widget.manual)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -86,6 +93,11 @@ class _ManualPdfScreenState extends State<ManualPdfScreen> {
             onPressed: _openSearchScreen,
             icon: const Icon(Icons.search),
             tooltip: 'Search manual text',
+          ),
+          IconButton(
+            onPressed: _openAskScreen,
+            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: 'Ask this manual',
           ),
         ],
       ),
