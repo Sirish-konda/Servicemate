@@ -14,17 +14,19 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _selectedIndex = 0;
+  static const int _chatTabIndex = 2;
 
-  static const List<Widget> _screens = [
-    HomeScreen(),
-    ManualsScreen(),
-    ChatScreen(),
-    SettingsScreen(),
-  ];
+  int _selectedIndex = 0;
+  Key _chatScreenKey = UniqueKey();
 
   void _onDestinationSelected(int index) {
+    if (index == _selectedIndex) return;
+
     setState(() {
+      if (index == _chatTabIndex) {
+        _chatScreenKey = UniqueKey();
+      }
+
       _selectedIndex = index;
     });
   }
@@ -32,7 +34,15 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _screens),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          const HomeScreen(),
+          const ManualsScreen(),
+          ChatScreen(key: _chatScreenKey),
+          const SettingsScreen(),
+        ],
+      ),
       bottomNavigationBar: AppNavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: _onDestinationSelected,
