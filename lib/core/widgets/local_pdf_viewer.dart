@@ -18,12 +18,17 @@ class LocalPdfViewer extends StatelessWidget {
       initialPageNumber: initialPageNumber,
       params: PdfViewerParams(
         errorBannerBuilder: (context, error, stackTrace, documentRef) {
+          debugPrint('PDF loading error: $error');
+
+          if (stackTrace != null) {
+            debugPrintStack(stackTrace: stackTrace);
+          }
+
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(24),
               child: Text(
-                'This PDF could not be opened. '
-                'It may be damaged or require a password.',
+                'This PDF could not be opened.',
                 textAlign: TextAlign.center,
               ),
             ),
