@@ -20,6 +20,7 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
       ManualAnswerHistoryService();
 
   bool _isDeleting = false;
+  String _searchQuery = '';
 
   late Future<List<SavedManualAnswer>> _historyFuture;
 
@@ -139,7 +140,14 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
               );
             }
 
-            final answers = snapshot.data ?? [];
+            final answers = snapshot.data ?? <SavedManualAnswer>[];
+
+            final query = _searchQuery.trim().toLowerCase();
+
+            final filteredAnswers = answers.where((record) {
+              return record.question.toLowerCase().contains(query) ||
+                  record.answer.toLowerCase().contains(query);
+            }).toList();
 
             if (answers.isEmpty) {
               return const Center(
@@ -154,20 +162,57 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
               );
             }
 
-            return ListView.separated(
-              padding: const EdgeInsets.all(20),
-              itemCount: answers.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final record = answers[index];
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: TextField(
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Search saved answers',
+                      hintText: 'Search questions or answers',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: filteredAnswers.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Text(
+                              'No saved answers match your search.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.all(20),
+                          itemCount: filteredAnswers.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final record = filteredAnswers[index];
 
-                return SavedAnswerCard(
-                  key: ValueKey(record.id),
-                  record: record,
-                  onOpenPage: _openPdf,
-                  onDelete: _isDeleting ? null : () => _deleteAnswer(record),
-                );
-              },
+                            return SavedAnswerCard(
+                              key: ValueKey(record.id),
+                              record: record,
+                              onOpenPage: _openPdf,
+                              onDelete: _isDeleting
+                                  ? null
+                                  : () => _deleteAnswer(record),
+                            );
+                          },
+                        ),
+                ),
+              ],
             );
           },
         ),
