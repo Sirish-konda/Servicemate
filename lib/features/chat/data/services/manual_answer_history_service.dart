@@ -108,4 +108,20 @@ class ManualAnswerHistoryService {
 
     return Directory(p.join(manualDirectory.path, 'answers'));
   }
+
+  Future<void> deleteAnswer({
+    required String manualId,
+    required String answerId,
+  }) async {
+    if (!_uuidPattern.hasMatch(answerId)) {
+      throw ArgumentError.value(answerId, 'answerId', 'Invalid answer ID.');
+    }
+
+    final directory = await _historyDirectory(manualId);
+    final file = File(p.join(directory.path, '$answerId.json'));
+
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
 }

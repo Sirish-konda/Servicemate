@@ -19,6 +19,8 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
   final ManualAnswerHistoryService _historyService =
       ManualAnswerHistoryService();
 
+  bool _isDeleting = false;
+
   late Future<List<SavedManualAnswer>> _historyFuture;
 
   @override
@@ -42,6 +44,68 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _deleteAnswer(SavedManualAnswer record) async {
+    if (_isDeleting) return;
+
+    setState(() {
+      _isDeleting = true;
+    });
+
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Delete saved answer?'),
+          content: const Text(
+            'This removes the saved question, answer, and source copies. '
+            'Your manual will remain on this device.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true || !mounted) return;
+
+      await _historyService.deleteAnswer(
+        manualId: widget.manual.id,
+        answerId: record.id,
+      );
+
+      if (!mounted) return;
+
+      _reload();
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Saved answer deleted.')));
+    } catch (error, stackTrace) {
+      debugPrint('Deleting saved answer failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not delete the saved answer. Try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
   }
 
   @override
@@ -101,6 +165,7 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
                   key: ValueKey(record.id),
                   record: record,
                   onOpenPage: _openPdf,
+                  onDelete: _isDeleting ? null : () => _deleteAnswer(record),
                 );
               },
             );
@@ -116,10 +181,12 @@ class SavedAnswerCard extends StatelessWidget {
     super.key,
     required this.record,
     required this.onOpenPage,
+    required this.onDelete,
   });
 
   final SavedManualAnswer record;
   final ValueChanged<int> onOpenPage;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +211,12 @@ class SavedAnswerCard extends StatelessWidget {
           Text('Saved answer', style: textTheme.titleSmall),
           const SizedBox(height: 8),
           SelectableText(record.answer),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Delete saved answer'),
+          ),
           const SizedBox(height: 16),
           const Text(
             'This is a saved AI response. Verify its claims '
