@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/chat/data/services/answer_reference_validator.dart';
 import 'package:servicemate/features/chat/data/services/manual_answer_history_service.dart';
 import 'package:servicemate/features/chat/presentation/screens/manual_answer_history_screen.dart';
+import 'package:servicemate/features/settings/presentation/screens/settings_screen.dart';
 
 import '../../../../core/llm/local_llm_service.dart';
 import '../../../manuals/data/services/manual_search_service.dart';
@@ -38,6 +40,8 @@ class _AskManualScreenState extends State<AskManualScreen> {
   List<ManualSearchResult> _sources = [];
 
   bool _needsPreparation = false;
+
+  bool _needsModel = false;
 
   @override
   void initState() {
@@ -111,6 +115,7 @@ class _AskManualScreenState extends State<AskManualScreen> {
       _status = 'Searching the manual...';
       _historyStatus = '';
       _needsPreparation = false;
+      _needsModel = false;
     });
 
     final buffer = StringBuffer();
@@ -177,6 +182,16 @@ class _AskManualScreenState extends State<AskManualScreen> {
             'The saved passages could not be read. '
             'Open this manual’s processing screen and prepare it again.';
       });
+    } on LocalModelNotInstalledException {
+      if (!mounted) return;
+
+      setState(() {
+        _failed = true;
+        _needsModel = true;
+        _status =
+            'Import and test a local model in Settings '
+            'before asking questions.';
+      });
     } catch (error, stackTrace) {
       debugPrint('Manual answer failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -199,33 +214,25 @@ class _AskManualScreenState extends State<AskManualScreen> {
     }
   }
 
-  String _completionMessage() {
-    if (_answer.trim().isEmpty) {
-      return 'The model returned no answer.';
-    }
+String _completionMessage() {
+    final result = const AnswerReferenceValidator().validate(
+      answer: _answer,
+      sourceCount: _sources.length,
+    );
 
-    if (_sources.isEmpty) {
-      return 'Try another search term.';
-    }
-
-    final references = RegExp(r'\[(\d+)\]')
-        .allMatches(_answer)
-        .map((match) => int.parse(match.group(1)!))
-        .toList();
-
-    if (references.any((number) => number < 1 || number > _sources.length)) {
-      return 'Invalid source references detected. '
-          'Treat this answer as unverified.';
-    }
-
-    if (references.isEmpty) {
-      return 'The answer has no numbered references. '
-          'Check it against the retrieved passages.';
-    }
-
-    return 'Answer generated. Verify its claims against the sources.';
+    return switch (result) {
+      AnswerReferenceStatus.emptyAnswer => 'The model returned no answer.',
+      AnswerReferenceStatus.noSources => 'Try another search term.',
+      AnswerReferenceStatus.missingReferences =>
+        'The answer has no numbered references. '
+            'Check it against the retrieved passages.',
+      AnswerReferenceStatus.invalidReferences =>
+        'Invalid source references detected. '
+            'Treat this answer as unverified.',
+      AnswerReferenceStatus.validReferences =>
+        'Answer generated. Verify its claims against the sources.',
+    };
   }
-
   void _openSource(ManualSearchResult source) {
     Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -254,6 +261,17 @@ class _AskManualScreenState extends State<AskManualScreen> {
 
     setState(() {
       _status = 'If preparation is complete, press Ask manual to try again.';
+    });
+  }
+
+  Future<void> _openModelSettings() async {
+    await Navigator.of(context)
+        .push<void>(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+
+    if (!mounted) return;
+
+    setState(() {
+      _status = 'If your model is ready, press Ask manual to try again.';
     });
   }
 
@@ -315,6 +333,14 @@ class _AskManualScreenState extends State<AskManualScreen> {
                   onPressed: _isBusy ? null : _openManualForPreparation,
                   icon: const Icon(Icons.picture_as_pdf_outlined),
                   label: const Text('Open manual'),
+                ),
+              ],
+              if (_needsModel) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _isBusy ? null : _openModelSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                  label: const Text('Open Settings'),
                 ),
               ],
               if (_historyStatus.isNotEmpty) ...[
