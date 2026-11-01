@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:servicemate/features/manuals/data/services/manual_chunking_service.dart';
-import 'package:servicemate/features/manuals/data/services/text_chunking_service.dart';
 
-import '../../data/services/manual_processing_service.dart';
+import '../../data/services/manual_preparation_service.dart';
 import '../../data/services/pdf_storage_service.dart';
 import '../../data/services/pdf_text_extraction_service.dart';
 import '../../domain/models/saved_manual.dart';
@@ -17,27 +15,25 @@ class ManualProcessingScreen extends StatefulWidget {
 }
 
 class _ManualProcessingScreenState extends State<ManualProcessingScreen> {
-  late final ManualProcessingService _processingService;
+  late final ManualPreparationService _preparationService;
 
   bool _isProcessing = false;
   bool _cancelRequested = false;
+  bool _completed = false;
+
   int _pagesProcessed = 0;
+  String _stage = '';
 
-  String _message = 'Extract and save text from every PDF page.';
+  String _message =
+      'Prepare this manual so you can search its text '
+      'and ask questions about it.';
 
-  late final ManualChunkingService _manualChunkingService;
   @override
   void initState() {
     super.initState();
 
-    _processingService = ManualProcessingService(
+    _preparationService = ManualPreparationService(
       storageService: PdfStorageService(),
-      extractionService: PdfTextExtractionService(),
-    );
-
-    _manualChunkingService = ManualChunkingService(
-      storageService: PdfStorageService(),
-      chunkingService: TextChunkingService(),
     );
   }
 
@@ -47,26 +43,28 @@ class _ManualProcessingScreenState extends State<ManualProcessingScreen> {
     super.dispose();
   }
 
-  Future<void> _startProcessing() async {
+  Future<void> _prepare() async {
     if (_isProcessing) return;
 
     setState(() {
       _isProcessing = true;
       _cancelRequested = false;
+      _completed = false;
       _pagesProcessed = 0;
-      _message = 'Opening the manual...';
+      _stage = 'Opening the manual';
+      _message = 'Preparing your manual...';
     });
 
     try {
-      final count = await _processingService.process(
-        manualId: widget.manual.id,
+      await _preparationService.prepare(
+        manual: widget.manual,
         isCancelled: () => _cancelRequested,
-        onProgress: (count) {
+        onProgress: (stage, pagesProcessed) {
           if (!mounted) return;
 
           setState(() {
-            _pagesProcessed = count;
-            _message = 'Extracting text...';
+            _stage = stage;
+            _pagesProcessed = pagesProcessed;
           });
         },
       );
@@ -74,27 +72,36 @@ class _ManualProcessingScreenState extends State<ManualProcessingScreen> {
       if (!mounted) return;
 
       setState(() {
+        _completed = true;
         _message =
-            'Completed: $count pages saved. '
-            'Some pages may contain no extractable text.';
+            'Preparation complete. You can now search this manual '
+            'and ask questions about its text.';
       });
     } on ExtractionCancelled {
       if (!mounted) return;
 
       setState(() {
         _message =
-            'Processing cancelled. '
-            'Any previous completed extraction was kept.';
+            'Preparation cancelled. Prepare the manual again '
+            'to complete all steps.';
+      });
+    } on ManualHasNoTextException {
+      if (!mounted) return;
+
+      setState(() {
+        _message =
+            'No searchable text was found. This PDF may contain '
+            'scanned pages that need OCR, which is not supported yet.';
       });
     } catch (error, stackTrace) {
-      debugPrint('Manual processing failed: $error');
+      debugPrint('Manual preparation failed: $error');
       debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) return;
 
       setState(() {
         _message =
-            'Could not complete extraction. '
+            'Could not prepare the manual. '
             'Check the PDF and available storage, then try again.';
       });
     } finally {
@@ -106,118 +113,63 @@ class _ManualProcessingScreenState extends State<ManualProcessingScreen> {
     }
   }
 
-  void _cancelProcessing() {
+  void _cancel() {
+    if (!_isProcessing || _cancelRequested) return;
+
     setState(() {
       _cancelRequested = true;
       _message = 'Cancelling after the current operation...';
     });
   }
 
-  Future<void> _createPassages() async {
-    if (_isProcessing) return;
-
-    setState(() {
-      _isProcessing = true;
-      _cancelRequested = false;
-      _pagesProcessed = 0;
-      _message = 'Creating search passages...';
-    });
-
-    try {
-      final count = await _manualChunkingService.buildChunks(
-        manualId: widget.manual.id,
-        isCancelled: () => _cancelRequested,
-        onProgress: (count) {
-          if (!mounted) return;
-
-          setState(() {
-            _pagesProcessed = count;
-          });
-        },
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _message = count == 0
-            ? 'No passages were created. Check whether the PDF '
-                  'contains extractable text.'
-            : 'Saved $count search passages.';
-      });
-    } on ExtractionCancelled {
-      if (!mounted) return;
-
-      setState(() {
-        _message = 'Passage creation cancelled.';
-      });
-    } catch (error, stackTrace) {
-      debugPrint('Passage creation failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) return;
-
-      setState(() {
-        _message =
-            'Could not create passages. '
-            'Extract the manual text first, then try again.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return PopScope(
       canPop: !_isProcessing,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Process manual'),
+          title: const Text('Prepare manual'),
           automaticallyImplyLeading: !_isProcessing,
         ),
         body: SafeArea(
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              Text(
-                widget.manual.name,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              Text(widget.manual.name, style: textTheme.titleLarge),
               const SizedBox(height: 24),
               if (_isProcessing) ...[
                 const LinearProgressIndicator(),
                 const SizedBox(height: 16),
-                Text('$_pagesProcessed pages processed'),
+                Text(_stage, style: textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Text('$_pagesProcessed pages processed in this stage'),
                 const SizedBox(height: 16),
               ],
               Text(_message),
               const SizedBox(height: 24),
               if (_isProcessing)
                 OutlinedButton(
-                  onPressed: _cancelRequested ? null : _cancelProcessing,
+                  onPressed: _cancelRequested ? null : _cancel,
                   child: Text(_cancelRequested ? 'Cancelling...' : 'Cancel'),
+                )
+              else if (_completed)
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Back to manual'),
                 )
               else
                 FilledButton(
-                  onPressed: _startProcessing,
-                  child: const Text('Extract and save text'),
+                  onPressed: _prepare,
+                  child: const Text('Prepare for questions'),
                 ),
               const SizedBox(height: 20),
               const Text(
-                'This reads existing PDF text. Scanned pages need OCR. '
-                'Extraction does not mean the manual is indexed for search.',
+                'Preparation extracts existing PDF text and creates '
+                'searchable passages on this device. It does not '
+                'train or run the language model.',
               ),
-              if (!_isProcessing) ...[
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: _createPassages,
-                  child: const Text('Create search passages'),
-                ),
-              ],
             ],
           ),
         ),
