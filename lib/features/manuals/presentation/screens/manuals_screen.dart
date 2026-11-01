@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:servicemate/features/manuals/data/services/manual_preparation_status_service.dart';
 import 'package:servicemate/features/manuals/presentation/screens/manual_pdf_screen.dart';
+import 'package:servicemate/features/manuals/presentation/screens/manual_processing_screen.dart';
 
 import '../../data/services/pdf_storage_service.dart';
 import '../../domain/models/saved_manual.dart';
@@ -88,8 +89,8 @@ class _ManualsScreenState extends State<ManualsScreen> {
         return AlertDialog(
           title: const Text('Delete manual?'),
           content: Text(
-            'Delete "${manual.name}" and its extracted text '
-            'from ServiceMate?\n\n'
+            'Delete "${manual.name}", its extracted text, '
+            'search passages, and saved answer history from ServiceMate?\n\n'
             'Your original PDF outside the app will not be deleted.',
           ),
           actions: [
@@ -146,6 +147,18 @@ class _ManualsScreenState extends State<ManualsScreen> {
       manualId,
       () => _statusService.getStatusLabel(manualId),
     );
+  }
+
+  Future<void> _prepareManual(SavedManual manual) async {
+    if (_deletingManualId != null) return;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => ManualProcessingScreen(manual: manual)),
+    );
+
+    if (!mounted) return;
+
+    _reloadManuals();
   }
 
   @override
@@ -271,16 +284,31 @@ class _ManualsScreenState extends State<ManualsScreen> {
                             status = statusSnapshot.data ?? 'Needs preparation';
                           }
 
-                          return ManualListCard(
-                            title: manual.name,
-                            subtitle:
-                                'Imported ${_formatDate(manual.importedAt)}',
-                            supportingText: status,
-                            isDeleting: _deletingManualId == manual.id,
-                            onDelete: _deletingManualId == null
-                                ? () => _deleteManual(manual)
-                                : null,
-                            onTap: () => _openManual(manual),
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ManualListCard(
+                                title: manual.name,
+                                subtitle:
+                                    'Imported ${_formatDate(manual.importedAt)}',
+                                supportingText: status,
+                                isDeleting: _deletingManualId == manual.id,
+                                onDelete: _deletingManualId == null
+                                    ? () => _deleteManual(manual)
+                                    : null,
+                                onTap: () => _openManual(manual),
+                              ),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: _deletingManualId == null
+                                      ? () => _prepareManual(manual)
+                                      : null,
+                                  icon: const Icon(Icons.manage_search),
+                                  label: const Text('Prepare / retry'),
+                                ),
+                              ),
+                            ],
                           );
                         },
                       );
