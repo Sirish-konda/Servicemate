@@ -37,6 +37,8 @@ class _AskManualScreenState extends State<AskManualScreen> {
 
   List<ManualSearchResult> _sources = [];
 
+  bool _needsPreparation = false;
+
   @override
   void initState() {
     super.initState();
@@ -108,6 +110,7 @@ class _AskManualScreenState extends State<AskManualScreen> {
       _sources = [];
       _status = 'Searching the manual...';
       _historyStatus = '';
+      _needsPreparation = false;
     });
 
     final buffer = StringBuffer();
@@ -155,6 +158,7 @@ class _AskManualScreenState extends State<AskManualScreen> {
 
       setState(() {
         _failed = true;
+        _needsPreparation = true;
         _status =
             'This manual is not ready for questions. '
             'Open its PDF and use the processing screen to '
@@ -168,6 +172,7 @@ class _AskManualScreenState extends State<AskManualScreen> {
 
       setState(() {
         _failed = true;
+        _needsPreparation = true;
         _status =
             'The saved passages could not be read. '
             'Open this manual’s processing screen and prepare it again.';
@@ -240,6 +245,18 @@ class _AskManualScreenState extends State<AskManualScreen> {
     );
   }
 
+  Future<void> _openManualForPreparation() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => ManualPdfScreen(manual: widget.manual)),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _status = 'If preparation is complete, press Ask manual to try again.';
+    });
+  }
+
   final ManualAnswerHistoryService _historyService =
       ManualAnswerHistoryService();
 
@@ -292,6 +309,14 @@ class _AskManualScreenState extends State<AskManualScreen> {
                 const SizedBox(height: 12),
               ],
               if (_status.isNotEmpty) Text(_status),
+              if (_needsPreparation) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _isBusy ? null : _openManualForPreparation,
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: const Text('Open manual'),
+                ),
+              ],
               if (_historyStatus.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(_historyStatus, style: textTheme.bodySmall),
