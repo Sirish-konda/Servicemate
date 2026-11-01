@@ -23,7 +23,7 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
   bool _isDeleting = false;
   String _searchQuery = '';
 
-  late Future<List<SavedManualAnswer>> _historyFuture;
+  late Future<ManualAnswerHistoryResult> _historyFuture;
 
   @override
   void initState() {
@@ -115,7 +115,7 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Answer history')),
       body: SafeArea(
-        child: FutureBuilder<List<SavedManualAnswer>>(
+        child: FutureBuilder<ManualAnswerHistoryResult>(
           future: _historyFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
@@ -141,7 +141,8 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
               );
             }
 
-            final answers = snapshot.data ?? <SavedManualAnswer>[];
+            final result = snapshot.data!;
+            final answers = result.answers;
 
             final query = _searchQuery.trim().toLowerCase();
 
@@ -151,12 +152,15 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
             }).toList();
 
             if (answers.isEmpty) {
-              return const Center(
+              return Center(
                 child: Padding(
-                  padding: EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(20),
                   child: Text(
-                    'No saved answers yet. Ask this manual a question '
-                    'to start your history.',
+                    result.unreadableCount > 0
+                        ? 'Saved history was found, but its records could '
+                              'not be read. Your manual is still available.'
+                        : 'No saved answers yet. Ask this manual a question '
+                              'to start your history.',
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -165,8 +169,17 @@ class _ManualAnswerHistoryScreenState extends State<ManualAnswerHistoryScreen> {
 
             return Column(
               children: [
+                if (result.unreadableCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Text(
+                      '${result.unreadableCount} saved answer record(s) '
+                      'could not be read. Readable answers are shown below.',
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+
                   child: TextField(
                     onChanged: (value) {
                       setState(() {

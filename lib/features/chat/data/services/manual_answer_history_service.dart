@@ -8,6 +8,16 @@ import 'package:uuid/uuid.dart';
 
 import '../../../manuals/domain/models/manual_search_result.dart';
 
+class ManualAnswerHistoryResult {
+  ManualAnswerHistoryResult({
+    required List<SavedManualAnswer> answers,
+    required this.unreadableCount,
+  }) : answers = List.unmodifiable(answers);
+
+  final List<SavedManualAnswer> answers;
+  final int unreadableCount;
+}
+
 class ManualAnswerHistoryService {
   static final RegExp _uuidPattern = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-'
@@ -55,39 +65,49 @@ class ManualAnswerHistoryService {
     return record;
   }
 
-  Future<List<SavedManualAnswer>> getAnswers(String manualId) async {
+  Future<ManualAnswerHistoryResult> getAnswers(String manualId) async {
     final directory = await _historyDirectory(manualId);
 
     if (!await directory.exists()) {
-      return [];
+      return ManualAnswerHistoryResult(answers: [], unreadableCount: 0);
     }
 
     final answers = <SavedManualAnswer>[];
+    var unreadableCount = 0;
 
     await for (final entity in directory.list(followLinks: false)) {
       if (entity is! File || p.extension(entity.path) != '.json') {
         continue;
       }
 
-      final decoded = jsonDecode(await entity.readAsString());
+      try {
+        final decoded = jsonDecode(await entity.readAsString());
 
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Invalid answer history record.');
+        if (decoded is! Map<String, dynamic>) {
+          throw const FormatException('Invalid answer history record.');
+        }
+
+        final record = SavedManualAnswer.fromJson(decoded);
+        final filenameId = p.basenameWithoutExtension(entity.path);
+
+        if (record.manualId != manualId || record.id != filenameId) {
+          throw const FormatException('Answer history record mismatch.');
+        }
+
+        answers.add(record);
+      } on FormatException {
+        unreadableCount++;
+      } on FileSystemException {
+        unreadableCount++;
       }
-
-      final record = SavedManualAnswer.fromJson(decoded);
-      final filenameId = p.basenameWithoutExtension(entity.path);
-
-      if (record.manualId != manualId || record.id != filenameId) {
-        throw const FormatException('Answer history record mismatch.');
-      }
-
-      answers.add(record);
     }
 
     answers.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    return List.unmodifiable(answers);
+    return ManualAnswerHistoryResult(
+      answers: answers,
+      unreadableCount: unreadableCount,
+    );
   }
 
   Future<Directory> _historyDirectory(String manualId) async {
