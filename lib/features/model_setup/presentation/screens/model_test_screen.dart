@@ -20,10 +20,9 @@ class _ModelTestScreenState extends State<ModelTestScreen> {
   @override
   void initState() {
     super.initState();
-
     _status = _llmService.hasModel
         ? 'A model is registered. Run the test to check it loads.'
-        : 'Import the Qwen3 0.6B .litertlm file first.';
+        : 'Import the Qwen3 1.7B .litertlm file first.';
   }
 
   Future<void> _importModel() async {
@@ -31,6 +30,7 @@ class _ModelTestScreenState extends State<ModelTestScreen> {
 
     setState(() {
       _isBusy = true;
+      _response = '';
       _status = 'Choose the downloaded model file.';
     });
 
@@ -95,9 +95,14 @@ class _ModelTestScreenState extends State<ModelTestScreen> {
     final stopwatch = Stopwatch()..start();
 
     try {
-      await for (final token in _llmService.generate(
-        'Reply with one short sentence explaining what a refrigerator does.',
-      )) {
+      await for (final token in _llmService.generate('''
+Read this fictional reference:
+Compartment A has a default temperature of 9 degrees.
+Compartment B has a default temperature of -12 degrees.
+
+What is the default temperature of Compartment A?
+Answer in one short sentence.
+''')) {
         buffer.write(token);
 
         if (!mounted) continue;
@@ -151,13 +156,14 @@ class _ModelTestScreenState extends State<ModelTestScreen> {
             padding: const EdgeInsets.all(24),
             children: [
               Text(
-                'First local response',
+                'Check your local model',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 12),
               const Text(
-                'This tests the language model only. '
-                'It is not using your manual or search results yet.',
+                'This test uses a short fictional reference, not your manuals. '
+                'The expected answer is 9 degrees for Compartment A. '
+                'A successful test does not guarantee accurate manual answers.',
               ),
               const SizedBox(height: 24),
               OutlinedButton(
