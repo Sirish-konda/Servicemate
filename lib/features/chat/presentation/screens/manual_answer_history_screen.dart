@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/chat/data/services/answer_reference_validator.dart';
 import 'package:servicemate/features/chat/domain/models/saved_manula_answer.dart';
 
 import '../../../manuals/domain/models/saved_manual.dart';
@@ -233,6 +234,29 @@ class SavedAnswerCard extends StatelessWidget {
   final ValueChanged<int> onOpenPage;
   final VoidCallback? onDelete;
 
+  String _referenceMessage() {
+    final result = const AnswerReferenceValidator().validate(
+      answer: record.answer,
+      sourceCount: record.sources.length,
+    );
+
+    return switch (result) {
+      AnswerReferenceStatus.emptyAnswer =>
+        'This saved record contains no answer.',
+      AnswerReferenceStatus.noSources =>
+        'No retrieved sources were saved with this answer.',
+      AnswerReferenceStatus.missingReferences =>
+        'This answer has no numbered references. '
+            'Check it against the saved passages.',
+      AnswerReferenceStatus.invalidReferences =>
+        'This answer contains invalid source references. '
+            'Treat it as unverified.',
+      AnswerReferenceStatus.validReferences =>
+        'Reference numbers are within range. '
+            'Check that the sources support the answer.',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -263,9 +287,11 @@ class SavedAnswerCard extends StatelessWidget {
             label: const Text('Delete saved answer'),
           ),
           const SizedBox(height: 16),
+          Text(_referenceMessage()),
+          const SizedBox(height: 8),
           const Text(
-            'This is a saved AI response. Verify its claims '
-            'against the original manual.',
+            'This is a saved AI response. '
+            'Verify its claims against the original manual.',
           ),
           if (record.sources.isNotEmpty) ...[
             const SizedBox(height: 20),
