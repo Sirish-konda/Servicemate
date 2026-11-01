@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/manuals/data/services/manual_preparation_status_service.dart';
 import 'package:servicemate/features/manuals/presentation/screens/manual_pdf_screen.dart';
 
 import '../../data/services/pdf_storage_service.dart';
@@ -23,15 +24,26 @@ class _ManualsScreenState extends State<ManualsScreen> {
 
   String _searchQuery = '';
 
+  late final ManualPreparationStatusService _statusService;
+
+  final Map<String, Future<String>> _statusFutures = {};
+
   @override
   void initState() {
     super.initState();
+
+    _statusService = ManualPreparationStatusService(
+      storageService: _storageService,
+    );
+
     _manualsFuture = _storageService.getSavedManuals();
   }
 
   void _reloadManuals() {
     if (_deletingManualId != null) return;
+
     setState(() {
+      _statusFutures.clear();
       _manualsFuture = _storageService.getSavedManuals();
     });
   }
@@ -47,10 +59,16 @@ class _ManualsScreenState extends State<ManualsScreen> {
     _reloadManuals();
   }
 
-  void _openManual(SavedManual manual) {
-    Navigator.of(context).push<void>(
+  Future<void> _openManual(SavedManual manual) async {
+    if (_deletingManualId != null) return;
+
+    await Navigator.of(context).push<void>(
       MaterialPageRoute(builder: (_) => ManualPdfScreen(manual: manual)),
     );
+
+    if (!mounted) return;
+
+    _reloadManuals();
   }
 
   String _formatDate(DateTime date) {
@@ -121,6 +139,13 @@ class _ManualsScreenState extends State<ManualsScreen> {
             .showSnackBar(SnackBar(content: Text(message)));
       }
     }
+  }
+
+  Future<String> _statusFor(String manualId) {
+    return _statusFutures.putIfAbsent(
+      manualId,
+      () => _statusService.getStatusLabel(manualId),
+    );
   }
 
   @override
@@ -230,19 +255,33 @@ class _ManualsScreenState extends State<ManualsScreen> {
                     itemBuilder: (context, index) {
                       final manual = filteredManuals[index];
 
-                      return ManualListCard(
+                      return FutureBuilder<String>(
                         key: ValueKey(manual.id),
-                        title: manual.name,
-                        subtitle: 'Imported ${_formatDate(manual.importedAt)}',
-                        supportingText: 'Saved on this device',
-                        isDeleting: _deletingManualId == manual.id,
-                        onDelete: _deletingManualId == null
-                            ? () => _deleteManual(manual)
-                            : null,
-                        onTap: () {
-                          if (_deletingManualId != null) return;
+                        future: _statusFor(manual.id),
+                        builder: (context, statusSnapshot) {
+                          final String status;
 
-                          _openManual(manual);
+                          if (statusSnapshot.connectionState !=
+                              ConnectionState.done) {
+                            status = 'Checking preparation...';
+                          } else if (statusSnapshot.hasError) {
+                            status =
+                                'Preparation data unreadable — prepare again';
+                          } else {
+                            status = statusSnapshot.data ?? 'Needs preparation';
+                          }
+
+                          return ManualListCard(
+                            title: manual.name,
+                            subtitle:
+                                'Imported ${_formatDate(manual.importedAt)}',
+                            supportingText: status,
+                            isDeleting: _deletingManualId == manual.id,
+                            onDelete: _deletingManualId == null
+                                ? () => _deleteManual(manual)
+                                : null,
+                            onTap: () => _openManual(manual),
+                          );
                         },
                       );
                     },

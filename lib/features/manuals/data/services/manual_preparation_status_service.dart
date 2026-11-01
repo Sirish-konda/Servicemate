@@ -40,4 +40,90 @@ class ManualPreparationStatusService {
       }
     }
   }
+
+  Future<String> getStatusLabel(String manualId) async {
+    final pdfPath = await _storageService.getPdfPath(manualId);
+    final directory = p.dirname(pdfPath);
+
+    final statusFile = File(p.join(directory, 'preparation_status.json'));
+    final chunksFile = File(p.join(directory, 'chunks.jsonl'));
+
+    if (!await statusFile.exists()) {
+      final hasPassages = await _hasValidPassages(chunksFile, manualId);
+
+      return hasPassages ? 'Ready for questions' : 'Needs preparation';
+    }
+
+    final decoded = jsonDecode(await statusFile.readAsString());
+
+    if (decoded is! Map<String, dynamic> ||
+        decoded['schemaVersion'] != 1 ||
+        decoded['manualId'] != manualId ||
+        decoded['updatedAt'] is! String ||
+        DateTime.tryParse(decoded['updatedAt'] as String) == null) {
+      throw const FormatException('Invalid preparation status.');
+    }
+
+    switch (decoded['status']) {
+      case 'ready':
+        final hasPassages = await _hasValidPassages(chunksFile, manualId);
+
+        return hasPassages ? 'Ready for questions' : 'Needs preparation';
+
+      case 'preparing':
+        return 'Preparation incomplete';
+
+      case 'cancelled':
+        return 'Preparation cancelled — retry';
+
+      case 'noText':
+        return 'No searchable text found';
+
+      case 'failed':
+        return 'Preparation failed — retry';
+
+      default:
+        throw const FormatException('Unknown preparation status.');
+    }
+  }
+
+  Future<bool> _hasValidPassages(File file, String manualId) async {
+    if (!await file.exists()) return false;
+
+    var hasPassages = false;
+
+    final lines = file
+        .openRead()
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
+
+    await for (final line in lines) {
+      if (line.trim().isEmpty) continue;
+
+      final record = jsonDecode(line);
+
+      if (record is! Map<String, dynamic>) {
+        throw const FormatException('Invalid passage record.');
+      }
+
+      final id = record['id'];
+      final page = record['pdfPageNumber'];
+      final text = record['text'];
+
+      if (record['schemaVersion'] != 1 ||
+          record['manualId'] != manualId ||
+          id is! String ||
+          id.trim().isEmpty ||
+          page is! int ||
+          page < 1 ||
+          text is! String ||
+          text.trim().isEmpty) {
+        throw const FormatException('Invalid passage fields.');
+      }
+
+      hasPassages = true;
+    }
+
+    return hasPassages;
+  }
 }
