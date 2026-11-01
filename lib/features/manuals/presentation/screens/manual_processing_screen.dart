@@ -122,6 +122,38 @@ class _ManualProcessingScreenState extends State<ManualProcessingScreen> {
     });
   }
 
+  Future<void> _confirmAndPrepare() async {
+    if (_isProcessing) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Prepare this manual?'),
+        content: const Text(
+          'This extracts PDF text and builds searchable passages.\n\n'
+          'If this manual was prepared before, its preparation data '
+          'will be rebuilt. If rebuilding is interrupted, you may '
+          'need to complete preparation before asking more questions.\n\n'
+          'The PDF and saved answer history will be kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Prepare'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || confirmed != true || _isProcessing) return;
+
+    await _prepare();
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -161,7 +193,7 @@ class _ManualProcessingScreenState extends State<ManualProcessingScreen> {
                 )
               else
                 FilledButton(
-                  onPressed: _prepare,
+                  onPressed: _confirmAndPrepare,
                   child: const Text('Prepare for questions'),
                 ),
               const SizedBox(height: 20),
