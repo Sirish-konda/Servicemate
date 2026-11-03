@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/core/llm/model_storage_service.dart';
 
 import '../../../../core/llm/local_llm_service.dart';
 import '../../../model_setup/presentation/screens/model_test_screen.dart';
@@ -12,16 +13,37 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final LocalLlmService _llmService = LocalLlmService();
-
   Future<void> _openModelSetup() async {
     await Navigator.of(context)
         .push<void>(MaterialPageRoute(builder: (_) => const ModelTestScreen()));
 
     if (!mounted) return;
 
+    _refreshStorage();
+  }
+
+  final ModelStorageService _storageService = ModelStorageService();
+
+  late Future<ModelStorageSummary> _storageFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _storageFuture = _storageService.getSummary();
+  }
+
+  void _refreshStorage() {
     setState(() {
-      // Read the latest registration status when rebuilding.
+      _storageFuture = _storageService.getSummary();
     });
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes >= 1000000000) {
+      return '${(bytes / 1000000000).toStringAsFixed(2)} GB';
+    }
+
+    return '${(bytes / 1000000).toStringAsFixed(1)} MB';
   }
 
   @override
@@ -68,6 +90,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _openModelSetup,
+                  ),
+                  const Divider(height: 1),
+                  FutureBuilder<ModelStorageSummary>(
+                    future: _storageFuture,
+                    builder: (context, snapshot) {
+                      final String subtitle;
+
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        subtitle = 'Checking stored model files...';
+                      } else if (snapshot.hasError) {
+                        subtitle = 'Could not read model storage. Tap refresh to retry.';
+                      } else {
+                        final summary = snapshot.data!;
+                        final count = summary.fileCount;
+
+                        subtitle =
+                            '$count ${count == 1 ? 'file' : 'files'} · '
+                            '${_formatBytes(summary.totalBytes)}\n'
+                            'Includes retained imports. Excludes downloads and caches.';
+                      }
+
+                      return ListTile(
+                        leading: const Icon(Icons.storage_outlined),
+                        title: const Text('Stored model files'),
+                        subtitle: Text(subtitle),
+                        trailing: IconButton(
+                          tooltip: 'Refresh model storage',
+                          onPressed:
+                              snapshot.connectionState ==
+                                  ConnectionState.waiting
+                              ? null
+                              : _refreshStorage,
+                          icon: const Icon(Icons.refresh),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
