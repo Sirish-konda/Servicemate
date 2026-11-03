@@ -21,19 +21,22 @@ class ManualNotReadyException implements Exception {
 
 
 class ManualAnswerService {
-  ManualAnswerService({
+ManualAnswerService({
     required ManualSearchService searchService,
     required LocalLlmService llmService,
+    ManualPreparationStatusService? statusService,
   }) : _searchService = searchService,
-       _llmService = llmService;
+       _llmService = llmService,
+       _statusService =
+           statusService ??
+           ManualPreparationStatusService(storageService: PdfStorageService());
 
   final ManualSearchService _searchService;
   final LocalLlmService _llmService;
 
   final ManualPromptBuilder _promptBuilder = ManualPromptBuilder();
 
-  final ManualPreparationStatusService _statusService =
-      ManualPreparationStatusService(storageService: PdfStorageService());
+final ManualPreparationStatusService _statusService;
 
   Stream<String> answer({
     required SavedManual manual,
