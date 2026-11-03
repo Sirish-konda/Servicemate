@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 
 class LocalLlmService {
   bool get hasModel => FlutterEdgeAi.hasActiveModel();
@@ -10,26 +11,50 @@ class LocalLlmService {
   Future<void> importModel(String sourcePath) async {
     final source = File(sourcePath);
 
-    if (!await source.exists() || await source.length() == 0) {
-      throw StateError('The model file is missing or empty.');
+    if (!await source.exists()) {
+      throw StateError('The model file is missing.');
+    }
+
+    final sourceSize = await source.length();
+
+    if (sourceSize == 0) {
+      throw StateError('The model file is empty.');
     }
 
     final documents = await getApplicationDocumentsDirectory();
-    final modelDirectory = Directory(p.join(documents.path, 'models'));
+    final modelsDirectory = Directory(p.join(documents.path, 'models'));
 
-    await modelDirectory.create(recursive: true);
+    await modelsDirectory.create(recursive: true);
 
-    final destination = p.join(modelDirectory.path, 'qwen3-1.7b.litertlm');
+    // Each import gets a separate directory, preserving earlier files.
+    final installationDirectory = await modelsDirectory.createTemp('qwen3-');
 
-    // Keep our own copy instead of relying on the picker's temporary path.
-    if (p.normalize(sourcePath) != p.normalize(destination)) {
-      await source.copy(destination);
+    final destination = File(
+      p.join(installationDirectory.path, 'qwen3-1.7b.litertlm'),
+    );
+
+    try {
+      final copied = await source.copy(destination.path);
+
+      if (await copied.length() != sourceSize) {
+        throw StateError('The model copy is incomplete.');
+      }
+    } catch (_) {
+      try {
+        await installationDirectory.delete(recursive: true);
+      } catch (error) {
+        debugPrint('Cleaning incomplete model copy failed: $error');
+      }
+
+      rethrow;
     }
 
+    // Keep this durable copy after registration. The package may
+    // reference it directly for future inference and app restarts.
     await FlutterEdgeAi.installModel(
       modelType: ModelType.qwen3,
       fileType: ModelFileType.litertlm,
-    ).fromFile(destination).install();
+    ).fromFile(destination.path).install();
   }
 
   Stream<String> generate(String prompt) async* {
@@ -45,7 +70,7 @@ class LocalLlmService {
     );
 
     final loadedAt = timer.elapsedMilliseconds;
-    print('[LLM] Model ready: ${loadedAt} ms');
+    debugPrint('[LLM] Model ready: $loadedAt ms');
 
     try {
       final chat = await model.createChat(
@@ -67,8 +92,8 @@ class LocalLlmService {
 
             final firstTextAt = timer.elapsedMilliseconds;
 
-            print('[LLM] First text from start: $firstTextAt ms');
-            print(
+            debugPrint('[LLM] First text from start: $firstTextAt ms');
+            debugPrint(
               '[LLM] First text after generation started: '
               '${firstTextAt - generationStartedAt} ms',
             );
@@ -78,7 +103,7 @@ class LocalLlmService {
         }
       }
 
-      print(
+      debugPrint(
         '[LLM] Generation finished: '
         '${timer.elapsedMilliseconds - generationStartedAt} ms',
       );
@@ -90,11 +115,11 @@ class LocalLlmService {
       } finally {
         timer.stop();
 
-        print(
+        debugPrint(
           '[LLM] Model close: '
           '${timer.elapsedMilliseconds - closeStartedAt} ms',
         );
-        print('[LLM] Total: ${timer.elapsedMilliseconds} ms');
+        debugPrint('[LLM] Total: ${timer.elapsedMilliseconds} ms');
       }
     }
   }

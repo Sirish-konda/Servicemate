@@ -1,5 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:servicemate/core/llm/model_download_service.dart';
+import 'package:servicemate/core/llm/model_download_spec.dart';
 
 import '../../../../core/llm/local_llm_service.dart';
 
@@ -17,12 +19,18 @@ class _ModelTestScreenState extends State<ModelTestScreen> {
   String _status = '';
   String _response = '';
 
+  final ModelDownloadService _downloadService = ModelDownloadService();
+
+  double? _downloadProgress;
+  bool _canCancelDownload = false;
+  bool _downloadCancelRequested = false;
+
   @override
   void initState() {
     super.initState();
     _status = _llmService.hasModel
         ? 'A model is registered. Run the test to check it loads.'
-        : 'Import the Qwen3 1.7B .litertlm file first.';
+        : 'Download the AI model or import a local .litertlm file.';
   }
 
   Future<void> _importModel() async {
@@ -142,6 +150,151 @@ Answer in one short sentence.
     }
   }
 
+  Future<void> _downloadModel() async {
+    if (_isBusy) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          _llmService.hasModel
+              ? 'Download a replacement model?'
+              : 'Download AI model?',
+        ),
+        content: Text(
+          'Download Qwen3 1.7B, approximately 977 MB. '
+          'Wi-Fi is recommended.\n\n'
+          'Installation temporarily needs space for the download '
+          'and another full copy. Previous model files are retained.'
+          '${_llmService.hasModel ? '\n\nThe new model will become active after registration.' : ''}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Download'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || confirmed != true || _isBusy) return;
+
+    setState(() {
+      _isBusy = true;
+      _response = '';
+      _downloadProgress = 0;
+      _canCancelDownload = true;
+      _downloadCancelRequested = false;
+      _status = 'Starting download...';
+    });
+
+    DownloadedModel? downloaded;
+
+    try {
+      downloaded = await _downloadService.download(
+        spec: ModelDownloadSpec.qwen3,
+        onProgress: (received, total) {
+          if (!mounted || _downloadCancelRequested) return;
+
+          final progress = received / total;
+
+          // Avoid rebuilding for every network chunk.
+          final previous = _downloadProgress ?? 0;
+          if (received != total && progress - previous < 0.01) {
+            return;
+          }
+
+          setState(() {
+            _downloadProgress = progress;
+            _status =
+                'Downloading model: '
+                '${(progress * 100).toStringAsFixed(0)}%';
+          });
+        },
+        onVerifying: () {
+          if (!mounted || _downloadCancelRequested) return;
+
+          setState(() {
+            _downloadProgress = null;
+            _status = 'Checking model size and checksum...';
+          });
+        },
+      );
+
+      if (!mounted || _downloadCancelRequested) {
+        throw const ModelDownloadCancelled();
+      }
+
+      setState(() {
+        _canCancelDownload = false;
+        _downloadProgress = null;
+        _status = 'Installing the verified model...';
+      });
+
+      await _llmService.importModel(downloaded.file.path);
+
+      if (!mounted) return;
+
+      setState(() {
+        _status = 'Model registered. Tap Run test to check it loads.';
+      });
+    } on ModelDownloadCancelled {
+      if (!mounted) return;
+
+      setState(() {
+        _status = 'Download cancelled.';
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Model download or installation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        _status =
+            'Could not download or install the model. '
+            'Check your connection and available storage, then retry. '
+            'See the debug console for details.';
+      });
+    } finally {
+      try {
+        await downloaded?.cleanup();
+      } catch (error) {
+        debugPrint('Temporary model cleanup failed: $error');
+      }
+
+      if (mounted) {
+        setState(() {
+          _isBusy = false;
+          _canCancelDownload = false;
+          _downloadProgress = null;
+          _downloadCancelRequested = false;
+        });
+      }
+    }
+  }
+
+  void _cancelDownload() {
+    if (!_canCancelDownload || _downloadCancelRequested) return;
+
+    _downloadService.cancel();
+
+    setState(() {
+      _downloadCancelRequested = true;
+      _status = 'Cancelling download or verification...';
+    });
+  }
+
+  @override
+  void dispose() {
+    _downloadService.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -166,6 +319,12 @@ Answer in one short sentence.
                 'A successful test does not guarantee accurate manual answers.',
               ),
               const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _isBusy ? null : _downloadModel,
+                icon: const Icon(Icons.download_outlined),
+                label: const Text('Download AI model'),
+              ),
+              const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: _isBusy ? null : _importModel,
                 child: const Text('Import model'),
@@ -177,7 +336,18 @@ Answer in one short sentence.
               ),
               const SizedBox(height: 24),
               if (_isBusy) ...[
-                const LinearProgressIndicator(),
+                LinearProgressIndicator(value: _downloadProgress),
+                const SizedBox(height: 16),
+              ],
+              if (_canCancelDownload) ...[
+                OutlinedButton(
+                  onPressed: _downloadCancelRequested ? null : _cancelDownload,
+                  child: Text(
+                    _downloadCancelRequested
+                        ? 'Cancelling...'
+                        : 'Cancel download',
+                  ),
+                ),
                 const SizedBox(height: 16),
               ],
               Text(_status),
