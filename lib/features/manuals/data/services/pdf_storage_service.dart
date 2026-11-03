@@ -8,16 +8,29 @@ import 'package:servicemate/features/manuals/domain/models/saved_manual.dart';
 import 'package:servicemate/features/manuals/domain/models/selected_pdf.dart';
 import 'package:uuid/uuid.dart';
 
+class ManualLibraryResult {
+  ManualLibraryResult({
+    required List<SavedManual> manuals,
+    required this.unreadableCount,
+  }) : manuals = List.unmodifiable(manuals);
+
+  final List<SavedManual> manuals;
+  final int unreadableCount;
+}
+
 class PdfStorageService {
+  PdfStorageService({Future<Directory> Function()? documentsDirectoryProvider})
+    : _documentsDirectoryProvider =
+          documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
 
-  PdfStorageService({
-  Future<Directory> Function()? documentsDirectoryProvider,
-}) : _documentsDirectoryProvider =
-         documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
-
-final Future<Directory> Function() _documentsDirectoryProvider;
+  final Future<Directory> Function() _documentsDirectoryProvider;
 
   Future<List<SavedManual>> getSavedManuals() async {
+    final result = await getLibrary();
+    return result.manuals;
+  }
+
+  Future<ManualLibraryResult> getLibrary() async {
     final documentsDirectory = await _documentsDirectoryProvider();
 
     final manualsDirectory = Directory(
@@ -25,61 +38,92 @@ final Future<Directory> Function() _documentsDirectoryProvider;
     );
 
     if (!await manualsDirectory.exists()) {
-      return [];
+      return ManualLibraryResult(manuals: [], unreadableCount: 0);
     }
+
     final manuals = <SavedManual>[];
+    var unreadableCount = 0;
+
+    final validId = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+      r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
 
     await for (final entity in manualsDirectory.list(followLinks: false)) {
-      if (entity is! Directory) {
-        continue;
+      if (entity is! Directory) continue;
+
+      final folderId = p.basename(entity.path);
+
+      // Only UUID folders are part of our manual storage layout.
+      if (!validId.hasMatch(folderId)) continue;
+
+      try {
+        final metadataFile = File(p.join(entity.path, 'metadata.json'));
+
+        if (!await metadataFile.exists()) {
+          unreadableCount++;
+          continue;
+        }
+
+        final decoded = jsonDecode(await metadataFile.readAsString());
+
+        if (decoded is! Map<String, dynamic>) {
+          throw const FormatException('Invalid manual metadata.');
+        }
+
+        final id = decoded['id'];
+        final name = decoded['name'];
+        final sizeBytes = decoded['sizeBytes'];
+        final importedAt = decoded['importedAt'];
+
+        if (decoded['schemaVersion'] != 1 ||
+            id is! String ||
+            id != folderId ||
+            name is! String ||
+            name.trim().isEmpty ||
+            sizeBytes is! int ||
+            sizeBytes <= 0 ||
+            importedAt is! String) {
+          throw const FormatException('Invalid manual metadata fields.');
+        }
+
+        final importedDate = DateTime.tryParse(importedAt);
+
+        if (importedDate == null) {
+          throw const FormatException('Invalid manual import date.');
+        }
+
+        final pdfFile = File(p.join(entity.path, 'manual.pdf'));
+
+        if (!await pdfFile.exists() || await pdfFile.length() == 0) {
+          throw const FileSystemException(
+            'The saved manual PDF is missing or empty.',
+          );
+        }
+
+        manuals.add(
+          SavedManual(
+            id: id,
+            name: name,
+            sizeBytes: sizeBytes,
+            importedAt: importedDate,
+          ),
+        );
+      } on FormatException {
+        unreadableCount++;
+      } on FileSystemException {
+        unreadableCount++;
       }
-      final metadataFile = File(p.join(entity.path, 'metadata.json'));
-
-      if (!await metadataFile.exists()) {
-        continue;
-      }
-
-      final decoded = jsonDecode(await metadataFile.readAsString());
-
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Invalid manual metadata');
-      }
-
-      final id = decoded['id'];
-      final name = decoded['name'];
-      final sizeBytes = decoded['sizeBytes'];
-      final importedAt = decoded['importedAt'];
-
-      if (decoded['schemaVersion'] != 1 ||
-          id is! String ||
-          name is! String ||
-          sizeBytes is! int ||
-          importedAt is! String ||
-          id != p.basename(entity.path)) {
-        throw const FormatException('Invalid manual metadata');
-      }
-
-      final pdfFile = File(p.join(entity.path, 'manual.pdf'));
-
-      if (!await pdfFile.exists()) {
-        throw const FileSystemException('A saved manual PDF is missing.');
-      }
-
-      manuals.add(
-        SavedManual(
-          id: id,
-          name: name,
-          sizeBytes: sizeBytes,
-          importedAt: DateTime.parse(importedAt),
-        ),
-      );
     }
 
     manuals.sort(
       (first, second) => second.importedAt.compareTo(first.importedAt),
     );
 
-    return manuals;
+    return ManualLibraryResult(
+      manuals: manuals,
+      unreadableCount: unreadableCount,
+    );
   }
 
   Future<SavedManual> savePdf(SelectedPdf selectedpdf) async {

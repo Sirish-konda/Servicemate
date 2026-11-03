@@ -20,7 +20,7 @@ class ManualsScreen extends StatefulWidget {
 class _ManualsScreenState extends State<ManualsScreen> {
   final PdfStorageService _storageService = PdfStorageService();
 
-  late Future<List<SavedManual>> _manualsFuture;
+  late Future<ManualLibraryResult> _manualsFuture;
 
   String? _deletingManualId;
 
@@ -45,7 +45,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
       storageService: _storageService,
     );
 
-    _manualsFuture = _storageService.getSavedManuals();
+    _manualsFuture = _storageService.getLibrary();
   }
 
   void _reloadManuals() {
@@ -53,7 +53,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
 
     setState(() {
       _statusFutures.clear();
-      _manualsFuture = _storageService.getSavedManuals();
+      _manualsFuture = _storageService.getLibrary();
     });
   }
 
@@ -206,7 +206,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
               ),
             ),
             Expanded(
-              child: FutureBuilder<List<SavedManual>>(
+              child: FutureBuilder<ManualLibraryResult>(
                 future: _manualsFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState != ConnectionState.done) {
@@ -221,8 +221,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Text(
-                              'Could not load your manuals. '
-                              'A saved file may be missing or unreadable.',
+                              'Could not access your manual library. Please try again.',
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 16),
@@ -236,87 +235,113 @@ class _ManualsScreenState extends State<ManualsScreen> {
                     );
                   }
 
-                  final manuals = snapshot.data ?? [];
+                  final result = snapshot.data!;
+                  final manuals = result.manuals;
                   final query = _searchQuery.trim().toLowerCase();
 
                   final filteredManuals = manuals.where((manual) {
                     return manual.name.toLowerCase().contains(query);
                   }).toList();
 
+                  final Widget content;
+
                   if (manuals.isEmpty) {
-                    return const SingleChildScrollView(
+                    content = SingleChildScrollView(
                       child: ManualsEmptyState(
-                        title: 'No manuals yet',
-                        description:
-                            'Tap the + button to import your first PDF.',
+                        title: result.unreadableCount > 0
+                            ? 'No readable manuals'
+                            : 'No manuals yet',
+                        description: result.unreadableCount > 0
+                            ? 'Saved entries could not be loaded. '
+                                  'You can retry or import a copy of the original PDF.'
+                            : 'Tap the + button to import your first PDF.',
                       ),
                     );
-                  }
-
-                  if (filteredManuals.isEmpty) {
-                    return const SingleChildScrollView(
+                  } else if (filteredManuals.isEmpty) {
+                    content = const SingleChildScrollView(
                       child: ManualsEmptyState(
                         title: 'No manuals found',
                         description: 'Try searching with a different name.',
                       ),
                     );
-                  }
+                  } else {
+                    content = ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      itemCount: filteredManuals.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final manual = filteredManuals[index];
 
-                  return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                    itemCount: filteredManuals.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final manual = filteredManuals[index];
+                        return FutureBuilder<ManualReadiness>(
+                          key: ValueKey(manual.id),
+                          future: _statusFor(manual.id),
+                          builder: (context, statusSnapshot) {
+                            final isChecking =
+                                statusSnapshot.connectionState !=
+                                ConnectionState.done;
 
-                      return FutureBuilder<ManualReadiness>(
-                        key: ValueKey(manual.id),
-                        future: _statusFor(manual.id),
-                        builder: (context, snapshot) {
-                          final isChecking =
-                              snapshot.connectionState != ConnectionState.done;
+                            final readiness = statusSnapshot.hasError
+                                ? ManualReadiness.unreadable
+                                : statusSnapshot.data ??
+                                      ManualReadiness.needsPreparation;
 
-                          final readiness = snapshot.hasError
-                              ? ManualReadiness.unreadable
-                              : snapshot.data ??
-                                    ManualReadiness.needsPreparation;
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              ManualListCard(
-                                title: manual.name,
-                                subtitle:
-                                    'Imported ${_formatDate(manual.importedAt)}',
-                                supportingText: isChecking
-                                    ? 'Checking preparation...'
-                                    : readiness.label,
-                                isDeleting: _deletingManualId == manual.id,
-                                onDelete: _deletingManualId == null
-                                    ? () => _deleteManual(manual)
-                                    : null,
-                                onTap: () => _openManual(manual),
-                              ),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  onPressed:
-                                      !isChecking && _deletingManualId == null
-                                      ? () => _prepareManual(manual)
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ManualListCard(
+                                  title: manual.name,
+                                  subtitle:
+                                      'Imported ${_formatDate(manual.importedAt)}',
+                                  supportingText: isChecking
+                                      ? 'Checking preparation...'
+                                      : readiness.label,
+                                  isDeleting: _deletingManualId == manual.id,
+                                  onDelete: _deletingManualId == null
+                                      ? () => _deleteManual(manual)
                                       : null,
-                                  icon: const Icon(Icons.manage_search),
-                                  label: Text(
-                                    isChecking
-                                        ? 'Checking...'
-                                        : readiness.actionLabel,
+                                  onTap: () => _openManual(manual),
+                                ),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    onPressed:
+                                        !isChecking && _deletingManualId == null
+                                        ? () => _prepareManual(manual)
+                                        : null,
+                                    icon: const Icon(Icons.manage_search),
+                                    label: Text(
+                                      isChecking
+                                          ? 'Checking...'
+                                          : readiness.actionLabel,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    },
+                              ],
+                            );
+                          },
+                        );
+                      },
+                    );
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (result.unreadableCount > 0)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                          child: Text(
+                            result.unreadableCount == 1
+                                ? '1 saved manual could not be loaded. '
+                                      'Its remaining files have been left untouched.'
+                                : '${result.unreadableCount} saved manuals could not '
+                                      'be loaded. Their remaining files have been '
+                                      'left untouched.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      Expanded(child: content),
+                    ],
                   );
                 },
               ),
