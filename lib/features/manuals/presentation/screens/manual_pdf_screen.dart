@@ -8,6 +8,10 @@ import '../../data/services/pdf_storage_service.dart';
 import '../../domain/models/saved_manual.dart';
 import 'manual_processing_screen.dart';
 
+import 'package:flutter/foundation.dart';
+
+enum _ManualMenuAction { prepare, previewText }
+
 class ManualPdfScreen extends StatefulWidget {
   const ManualPdfScreen({
     super.key,
@@ -69,6 +73,18 @@ class _ManualPdfScreenState extends State<ManualPdfScreen> {
     );
   }
 
+  void _onMenuSelected(_ManualMenuAction action) {
+    switch (action) {
+      case _ManualMenuAction.prepare:
+        _openProcessingScreen();
+        break;
+
+      case _ManualMenuAction.previewText:
+        _openTextPreview();
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -80,16 +96,6 @@ class _ManualPdfScreenState extends State<ManualPdfScreen> {
         ),
         actions: [
           IconButton(
-            onPressed: _openTextPreview,
-            icon: const Icon(Icons.text_snippet_outlined),
-            tooltip: 'Preview extracted text',
-          ),
-          IconButton(
-            onPressed: _openProcessingScreen,
-            icon: const Icon(Icons.manage_search),
-            tooltip: 'Process manual',
-          ),
-          IconButton(
             onPressed: _openSearchScreen,
             icon: const Icon(Icons.search),
             tooltip: 'Search manual text',
@@ -98,6 +104,30 @@ class _ManualPdfScreenState extends State<ManualPdfScreen> {
             onPressed: _openAskScreen,
             icon: const Icon(Icons.chat_bubble_outline),
             tooltip: 'Ask this manual',
+          ),
+          PopupMenuButton<_ManualMenuAction>(
+            tooltip: 'Manual options',
+            onSelected: _onMenuSelected,
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: _ManualMenuAction.prepare,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.manage_search),
+                  title: Text('Prepare for questions'),
+                ),
+              ),
+              if (kDebugMode)
+                const PopupMenuItem(
+                  value: _ManualMenuAction.previewText,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.text_snippet_outlined),
+                    title: Text('Preview extracted text'),
+                    subtitle: Text('Development tool'),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

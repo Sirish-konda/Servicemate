@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:servicemate/features/manuals/domain/models/manual_readiness.dart';
 
 import 'pdf_storage_service.dart';
 
@@ -41,7 +42,7 @@ class ManualPreparationStatusService {
     }
   }
 
-  Future<String> getStatusLabel(String manualId) async {
+  Future<ManualReadiness> getReadiness(String manualId) async {
     final pdfPath = await _storageService.getPdfPath(manualId);
     final directory = p.dirname(pdfPath);
 
@@ -51,7 +52,9 @@ class ManualPreparationStatusService {
     if (!await statusFile.exists()) {
       final hasPassages = await _hasValidPassages(chunksFile, manualId);
 
-      return hasPassages ? 'Ready for questions' : 'Needs preparation';
+      return hasPassages
+          ? ManualReadiness.ready
+          : ManualReadiness.needsPreparation;
     }
 
     final decoded = jsonDecode(await statusFile.readAsString());
@@ -68,19 +71,21 @@ class ManualPreparationStatusService {
       case 'ready':
         final hasPassages = await _hasValidPassages(chunksFile, manualId);
 
-        return hasPassages ? 'Ready for questions' : 'Needs preparation';
+        return hasPassages
+            ? ManualReadiness.ready
+            : ManualReadiness.needsPreparation;
 
       case 'preparing':
-        return 'Preparation incomplete';
+        return ManualReadiness.incomplete;
 
       case 'cancelled':
-        return 'Preparation cancelled — retry';
+        return ManualReadiness.cancelled;
 
       case 'noText':
-        return 'No searchable text found';
+        return ManualReadiness.noText;
 
       case 'failed':
-        return 'Preparation failed — retry';
+        return ManualReadiness.failed;
 
       default:
         throw const FormatException('Unknown preparation status.');

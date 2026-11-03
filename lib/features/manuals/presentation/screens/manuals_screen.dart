@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:servicemate/features/manuals/data/services/manual_preparation_status_service.dart';
+import 'package:servicemate/features/manuals/domain/models/manual_readiness.dart';
 import 'package:servicemate/features/manuals/presentation/screens/manual_pdf_screen.dart';
 import 'package:servicemate/features/manuals/presentation/screens/manual_processing_screen.dart';
 
@@ -27,7 +28,14 @@ class _ManualsScreenState extends State<ManualsScreen> {
 
   late final ManualPreparationStatusService _statusService;
 
-  final Map<String, Future<String>> _statusFutures = {};
+  final Map<String, Future<ManualReadiness>> _statusFutures = {};
+
+  Future<ManualReadiness> _statusFor(String manualId) {
+    return _statusFutures.putIfAbsent(
+      manualId,
+      () => _statusService.getReadiness(manualId),
+    );
+  }
 
   @override
   void initState() {
@@ -140,13 +148,6 @@ class _ManualsScreenState extends State<ManualsScreen> {
             .showSnackBar(SnackBar(content: Text(message)));
       }
     }
-  }
-
-  Future<String> _statusFor(String manualId) {
-    return _statusFutures.putIfAbsent(
-      manualId,
-      () => _statusService.getStatusLabel(manualId),
-    );
   }
 
   Future<void> _prepareManual(SavedManual manual) async {
@@ -268,21 +269,17 @@ class _ManualsScreenState extends State<ManualsScreen> {
                     itemBuilder: (context, index) {
                       final manual = filteredManuals[index];
 
-                      return FutureBuilder<String>(
+                      return FutureBuilder<ManualReadiness>(
                         key: ValueKey(manual.id),
                         future: _statusFor(manual.id),
-                        builder: (context, statusSnapshot) {
-                          final String status;
+                        builder: (context, snapshot) {
+                          final isChecking =
+                              snapshot.connectionState != ConnectionState.done;
 
-                          if (statusSnapshot.connectionState !=
-                              ConnectionState.done) {
-                            status = 'Checking preparation...';
-                          } else if (statusSnapshot.hasError) {
-                            status =
-                                'Preparation data unreadable — prepare again';
-                          } else {
-                            status = statusSnapshot.data ?? 'Needs preparation';
-                          }
+                          final readiness = snapshot.hasError
+                              ? ManualReadiness.unreadable
+                              : snapshot.data ??
+                                    ManualReadiness.needsPreparation;
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -291,7 +288,9 @@ class _ManualsScreenState extends State<ManualsScreen> {
                                 title: manual.name,
                                 subtitle:
                                     'Imported ${_formatDate(manual.importedAt)}',
-                                supportingText: status,
+                                supportingText: isChecking
+                                    ? 'Checking preparation...'
+                                    : readiness.label,
                                 isDeleting: _deletingManualId == manual.id,
                                 onDelete: _deletingManualId == null
                                     ? () => _deleteManual(manual)
@@ -301,11 +300,16 @@ class _ManualsScreenState extends State<ManualsScreen> {
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton.icon(
-                                  onPressed: _deletingManualId == null
+                                  onPressed:
+                                      !isChecking && _deletingManualId == null
                                       ? () => _prepareManual(manual)
                                       : null,
                                   icon: const Icon(Icons.manage_search),
-                                  label: const Text('Prepare / retry'),
+                                  label: Text(
+                                    isChecking
+                                        ? 'Checking...'
+                                        : readiness.actionLabel,
+                                  ),
                                 ),
                               ),
                             ],

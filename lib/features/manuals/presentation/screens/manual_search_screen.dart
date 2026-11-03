@@ -159,7 +159,7 @@ class _ManualSearchScreenState extends State<ManualSearchScreen> {
                         return ListView.separated(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                           itemCount: results.length + 1,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (_, _) =>
                               const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             if (index == 0) {

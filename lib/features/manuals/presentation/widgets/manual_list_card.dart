@@ -80,6 +80,7 @@ class ManualListCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+
               if (isDeleting)
                 const SizedBox(
                   width: 24,
