@@ -19,6 +19,13 @@ class ManualAnswerHistoryResult {
 }
 
 class ManualAnswerHistoryService {
+  ManualAnswerHistoryService({
+    Future<Directory> Function()? documentsDirectoryProvider,
+  }) : _documentsDirectoryProvider =
+           documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
+
+  final Future<Directory> Function() _documentsDirectoryProvider;
+
   static final RegExp _uuidPattern = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-'
     r'[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
@@ -115,7 +122,7 @@ class ManualAnswerHistoryService {
       throw ArgumentError.value(manualId, 'manualId', 'Invalid manual ID.');
     }
 
-    final documents = await getApplicationDocumentsDirectory();
+    final documents = await _documentsDirectoryProvider();
     final manualDirectory = Directory(
       p.join(documents.path, 'manuals', manualId),
     );

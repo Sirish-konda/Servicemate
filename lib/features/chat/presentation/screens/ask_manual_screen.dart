@@ -11,6 +11,7 @@ import '../../../manuals/domain/models/manual_search_result.dart';
 import '../../../manuals/domain/models/saved_manual.dart';
 import '../../../manuals/presentation/screens/manual_pdf_screen.dart';
 import '../../data/services/manual_answer_service.dart';
+import '../../../manuals/domain/models/manual_readiness.dart';
 
 class AskManualScreen extends StatefulWidget {
   const AskManualScreen({
@@ -158,6 +159,16 @@ class _AskManualScreenState extends State<AskManualScreen> {
           sources: List<ManualSearchResult>.of(_sources),
         );
       }
+    } on ManualNotReadyException catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _failed = true;
+        _needsPreparation = true;
+        _status =
+            '${error.readiness.label}. '
+            'Open the manual and complete preparation before asking questions.';
+      });
     } on ManualNotProcessedException {
       if (!mounted) return;
 
@@ -214,7 +225,7 @@ class _AskManualScreenState extends State<AskManualScreen> {
     }
   }
 
-String _completionMessage() {
+  String _completionMessage() {
     final result = const AnswerReferenceValidator().validate(
       answer: _answer,
       sourceCount: _sources.length,
@@ -233,6 +244,7 @@ String _completionMessage() {
         'Answer generated. Verify its claims against the sources.',
     };
   }
+
   void _openSource(ManualSearchResult source) {
     Navigator.of(context).push<void>(
       MaterialPageRoute(
