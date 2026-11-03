@@ -9,8 +9,16 @@ import 'package:servicemate/features/manuals/domain/models/selected_pdf.dart';
 import 'package:uuid/uuid.dart';
 
 class PdfStorageService {
+
+  PdfStorageService({
+  Future<Directory> Function()? documentsDirectoryProvider,
+}) : _documentsDirectoryProvider =
+         documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
+
+final Future<Directory> Function() _documentsDirectoryProvider;
+
   Future<List<SavedManual>> getSavedManuals() async {
-    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final documentsDirectory = await _documentsDirectoryProvider();
 
     final manualsDirectory = Directory(
       p.join(documentsDirectory.path, 'manuals'),
@@ -83,7 +91,7 @@ class PdfStorageService {
       );
     }
 
-    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final documentsDirectory = await _documentsDirectoryProvider();
     final id = const Uuid().v4();
 
     final manualDirectory = Directory(
@@ -153,7 +161,7 @@ class PdfStorageService {
       throw const FormatException('Invalid manual ID.');
     }
 
-    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final documentsDirectory = await _documentsDirectoryProvider();
 
     final pdfFile = File(
       p.join(documentsDirectory.path, 'manuals', manualId, 'manual.pdf'),
@@ -176,7 +184,7 @@ class PdfStorageService {
       throw const FormatException('Invalid manual ID.');
     }
 
-    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final documentsDirectory = await _documentsDirectoryProvider();
 
     final manualDirectory = Directory(
       p.join(documentsDirectory.path, 'manuals', manualId),
