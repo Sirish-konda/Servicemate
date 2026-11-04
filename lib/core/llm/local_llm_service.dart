@@ -5,6 +5,13 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 
+class RegisteredModelInfo {
+  const RegisteredModelInfo({required this.fileName, required this.sizeBytes});
+
+  final String fileName;
+  final int sizeBytes;
+}
+
 class LocalLlmService {
   bool get hasModel => FlutterEdgeAi.hasActiveModel();
 
@@ -122,5 +129,31 @@ class LocalLlmService {
         debugPrint('[LLM] Total: ${timer.elapsedMilliseconds} ms');
       }
     }
+  }
+
+  Future<RegisteredModelInfo?> getRegisteredModelInfo() async {
+    final spec = FlutterEdgeAi.activeModelSpec;
+
+    if (spec == null) return null;
+
+    final files = spec.files
+        .where((file) => file.filename.toLowerCase().endsWith('.litertlm'))
+        .toList();
+
+    if (files.length != 1) {
+      throw StateError('Expected one registered .litertlm model file.');
+    }
+
+    final path = await FlutterEdgeAi.getModelPath(files.single.filename);
+    final file = File(path);
+
+    if (!await file.exists()) {
+      throw StateError('The registered model file is missing.');
+    }
+
+    return RegisteredModelInfo(
+      fileName: p.basename(path),
+      sizeBytes: await file.length(),
+    );
   }
 }

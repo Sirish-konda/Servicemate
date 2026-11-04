@@ -26,15 +26,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   late Future<ModelStorageSummary> _storageFuture;
 
+  late Future<RegisteredModelInfo?> _registeredModelFuture;
+
   @override
   void initState() {
     super.initState();
     _storageFuture = _storageService.getSummary();
+    _registeredModelFuture = _llmService.getRegisteredModelInfo();
   }
 
   void _refreshStorage() {
     setState(() {
       _storageFuture = _storageService.getSummary();
+      _registeredModelFuture = _llmService.getRegisteredModelInfo();
     });
   }
 
@@ -90,6 +94,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _openModelSetup,
+                  ),
+                  const Divider(height: 1),
+                  FutureBuilder<RegisteredModelInfo?>(
+                    future: _registeredModelFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        return const ListTile(
+                          leading: Icon(Icons.description_outlined),
+                          title: Text('Registered model file'),
+                          subtitle: Text('Checking file details...'),
+                        );
+                      }
+
+                      if (snapshot.hasError) {
+                        return const ListTile(
+                          leading: Icon(Icons.error_outline),
+                          title: Text('Registered model file'),
+                          subtitle: Text(
+                            'Could not access its details. '
+                            'Open model setup to check or replace the model.',
+                          ),
+                        );
+                      }
+
+                      final info = snapshot.data;
+
+                      return ListTile(
+                        leading: const Icon(Icons.description_outlined),
+                        title: const Text('Registered model file'),
+                        subtitle: Text(
+                          info == null
+                              ? 'No active model registered.'
+                              : '${info.fileName}\n${_formatBytes(info.sizeBytes)}',
+                        ),
+                      );
+                    },
                   ),
                   const Divider(height: 1),
                   FutureBuilder<ModelStorageSummary>(
