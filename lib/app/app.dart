@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:servicemate/app/app_shell.dart';
+import 'package:servicemate/app/first_run_gate.dart';
+
 
 import '../core/theme/app_theme.dart';
 
@@ -12,7 +13,7 @@ class ServiceMateApp extends StatelessWidget {
       title: 'ServiceMate',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const AppShell(),
+      home: const FirstRunGate(),
     );
   }
 }
