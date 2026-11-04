@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:servicemate/app/first_run_gate.dart';
-
 
 import '../core/theme/app_theme.dart';
+import 'first_run_gate.dart';
 
 class ServiceMateApp extends StatelessWidget {
   const ServiceMateApp({super.key});
