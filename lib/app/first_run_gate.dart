@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:servicemate/features/model_setup/presentation/screens/setup_guide_screen.dart';
 
 import '../core/llm/local_llm_service.dart';
 import '../core/services/first_run_service.dart';
@@ -112,51 +113,11 @@ class _FirstRunGateState extends State<FirstRunGate> {
           return const AppShell();
         }
 
-        return Scaffold(
-          appBar: AppBar(title: const Text('Welcome to ServiceMate')),
-          body: SafeArea(
-            child: ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                Text(
-                  'Your manuals, on your device',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Import PDF manuals, search their text, and open '
-                  'the original pages when you need them.',
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'To generate AI answers offline, download the '
-                  'Qwen3 1.7B model once. The download is about '
-                  '977 MB and installation needs extra storage '
-                  'for a second copy. Wi-Fi is recommended.',
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'You can continue without AI and set it up later '
-                  'in Settings. PDF reading and prepared-text search '
-                  'do not require the model.',
-                ),
-                const SizedBox(height: 28),
-                FilledButton(
-                  onPressed: _isBusy ? null : () => _continue(openSetup: true),
-                  child: const Text('Set up offline AI'),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: _isBusy ? null : () => _continue(openSetup: false),
-                  child: const Text('Continue without AI'),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 16),
-                  Text(_error!),
-                ],
-              ],
-            ),
-          ),
+        return SetupGuideScreen(
+          isBusy: _isBusy,
+          error: _error,
+          onSetupPressed: () => _continue(openSetup: true),
+          onContinuePressed: () => _continue(openSetup: false),
         );
       },
     );

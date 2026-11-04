@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:servicemate/core/llm/model_storage_service.dart';
+import 'package:servicemate/features/model_setup/presentation/screens/setup_guide_screen.dart';
 
 import '../../../../core/llm/local_llm_service.dart';
 import '../../../model_setup/presentation/screens/model_test_screen.dart';
@@ -50,6 +51,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return '${(bytes / 1000000).toStringAsFixed(1)} MB';
   }
 
+  Future<void> _openSetupGuide() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (guideContext) => SetupGuideScreen(
+          isFirstRun: false,
+          onSetupPressed: _openModelSetup,
+          onContinuePressed: () {
+            Navigator.of(guideContext).pop();
+          },
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    _refreshStorage();
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -61,6 +80,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.help_outline),
+                title: const Text('Setup guide'),
+                subtitle: const Text('How manuals and offline AI work'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _openSetupGuide,
+              ),
+            ),
+            const SizedBox(height: 24),
             Text('Local AI', style: textTheme.titleLarge),
             const SizedBox(height: 12),
             Card(
