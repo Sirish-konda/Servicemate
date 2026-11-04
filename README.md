@@ -118,8 +118,3 @@ or native PDF rendering.
 - Downloads require the app to remain open and restart after interruption.
 - Model registration does not prove that inference will succeed.
 - Physical-device performance and offline restart behavior need validation.
-
-## Status
-
-Development prototype. Further device testing and answer-quality
-evaluation are required before release.
