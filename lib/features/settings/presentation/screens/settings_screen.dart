@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:servicemate/core/llm/model_storage_service.dart';
+import 'package:servicemate/features/model_setup/presentation/screens/model_storage_screen.dart';
 import 'package:servicemate/features/model_setup/presentation/screens/setup_guide_screen.dart';
 
 import '../../../../core/llm/local_llm_service.dart';
@@ -69,6 +70,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _refreshStorage();
   }
 
+  Future<void> _openModelStorage() async {
+    await Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => const ModelStorageScreen()));
+
+    if (!mounted) return;
+
+    _refreshStorage();
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -123,6 +134,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _openModelSetup,
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.folder_outlined),
+                    title: const Text('Manage model storage'),
+                    subtitle: const Text('Remove unregistered model copies'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _openModelStorage,
                   ),
                   const Divider(height: 1),
                   FutureBuilder<RegisteredModelInfo?>(
