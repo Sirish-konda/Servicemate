@@ -116,5 +116,4 @@ or native PDF rendering.
 - AI answers may be incorrect even when citations are valid.
 - Questions are independent; saved history is not conversational memory.
 - Downloads require the app to remain open and restart after interruption.
-- Model registration does not prove that inference will succeed.
-- Physical-device performance and offline restart behavior need validation.
+
